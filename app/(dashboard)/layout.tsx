@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AppShell } from "./app-shell";
+import { AppShell } from "../../components/dashboard/app-shell";
 
 
 interface DashboardLayoutProps {
