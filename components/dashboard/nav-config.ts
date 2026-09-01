@@ -1,19 +1,16 @@
-import type { ComponentType } from "react";
-
-import {
-  Bell,
-  Building2,
-  FileText,
-  FolderKanban,
-  LayoutDashboard,
-  Settings,
-  Users,
-} from "lucide-react";
+export type NavIcon =
+  | "layout-dashboard"
+  | "folder-kanban"
+  | "file-text"
+  | "users"
+  | "building-2"
+  | "bell"
+  | "settings";
 
 export interface NavItem {
   title: string;
   href: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: NavIcon;
 }
 
 export interface NavGroup {
@@ -28,27 +25,27 @@ export const mainNavigation: NavGroup[] = [
       {
         title: "Overview",
         href: "/",
-        icon: LayoutDashboard,
+        icon: "layout-dashboard",
       },
       {
         title: "Projects",
         href: "/projects",
-        icon: FolderKanban,
+        icon: "folder-kanban",
       },
       {
         title: "Documents",
         href: "/documents",
-        icon: FileText,
+        icon: "file-text",
       },
       {
         title: "Team",
         href: "/team",
-        icon: Users,
+        icon: "users",
       },
       {
         title: "Vendors",
         href: "/vendors",
-        icon: Building2,
+        icon: "building-2",
       },
     ],
   },
@@ -58,12 +55,12 @@ export const mainNavigation: NavGroup[] = [
       {
         title: "Notifications",
         href: "/notifications",
-        icon: Bell,
+        icon: "bell",
       },
       {
         title: "Settings",
         href: "/settings",
-        icon: Settings,
+        icon: "settings",
       },
     ],
   },
