@@ -42,18 +42,18 @@ export function MobileSidebar() {
 
       {isOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-  <button
-    type="button"
-    onClick={() => setIsOpen(false)}
-    aria-label="Close navigation menu"
-    className="absolute inset-0 bg-black/50"
-  />
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            aria-label="Close navigation menu"
+            className="absolute inset-0 bg-black/50"
+          />
 
-  <aside
-    id="mobile-navigation"
-    className="absolute inset-y-0 left-0 z-10 flex w-64 flex-col border-r bg-background shadow-xl"
-    aria-label="Mobile navigation"
-  >
+          <aside
+            id="mobile-navigation"
+            className="absolute inset-y-0 left-0 z-10 flex w-64 flex-col border-r bg-background shadow-xl"
+            aria-label="Mobile navigation"
+          >
             <div className="flex h-16 items-center justify-between border-b px-4">
               <div className="flex items-center gap-2">
                 <div
