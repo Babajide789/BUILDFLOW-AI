@@ -4,6 +4,7 @@ import { Bell } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { MobileSidebar } from "./mobile-sidebar";
+import { ThemeSwitcher } from "../theme/theme-switcher";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -42,12 +43,17 @@ export function Topbar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        <ThemeSwitcher />
+
         <button
           type="button"
           aria-label="Open notifications"
           className="inline-flex size-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          <Bell className="size-5" aria-hidden="true" />
+          <Bell
+            className="size-5"
+            aria-hidden="true"
+          />
         </button>
 
         <button
