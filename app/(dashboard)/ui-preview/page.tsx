@@ -485,42 +485,42 @@ export default function UIPlaygroundPage() {
         </Card>
 
         <Card className="md:col-span-2">
-  <CardHeader>
-    <CardTitle>PageSection</CardTitle>
-    <CardDescription>
-      Shared page-level content grouping with optional heading,
-      description, and actions.
-    </CardDescription>
-  </CardHeader>
+          <CardHeader>
+            <CardTitle>PageSection</CardTitle>
+            <CardDescription>
+              Shared page-level content grouping with optional heading,
+              description, and actions.
+            </CardDescription>
+          </CardHeader>
 
-  <CardContent className="space-y-8">
-    <PageSection
-      title="Active Projects"
-      description="Projects currently in progress."
-      actions={
-        <Button variant="outline">
-          View All
-        </Button>
-      }
-    >
-      <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        Project content placeholder
-      </div>
-    </PageSection>
+          <CardContent className="space-y-8">
+            <PageSection
+              title="Active Projects"
+              description="Projects currently in progress."
+              actions={
+                <Button variant="outline">
+                  View All
+                </Button>
+              }
+            >
+              <div className="rounded-lg border p-6 text-sm text-muted-foreground">
+                Project content placeholder
+              </div>
+            </PageSection>
 
-    <PageSection title="Recent Activity">
-      <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        Activity content placeholder
-      </div>
-    </PageSection>
+            <PageSection title="Recent Activity">
+              <div className="rounded-lg border p-6 text-sm text-muted-foreground">
+                Activity content placeholder
+              </div>
+            </PageSection>
 
-    <PageSection>
-      <div className="rounded-lg border p-6 text-sm text-muted-foreground">
-        Content-only section
-      </div>
-    </PageSection>
-  </CardContent>
-</Card>
+            <PageSection>
+              <div className="rounded-lg border p-6 text-sm text-muted-foreground">
+                Content-only section
+              </div>
+            </PageSection>
+          </CardContent>
+        </Card>
       </div>
     </main>
   )
