@@ -10,7 +10,7 @@ on:
 
 jobs:
   quality:
-    name: Lint and Build
+    name: Engineering Quality
     runs-on: ubuntu-latest
 
     steps:
@@ -26,8 +26,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run production build
-        run: npm run build
+      - name: Run engineering quality gate
+        run: npm run check
