@@ -4,6 +4,7 @@ export const projects: Project[] = [
   {
     id: "project-001",
     name: "Victoria Island Residence",
+    organizationId: "org-buildflow-demo",
     client: "Adekunle Holdings",
     location: "Victoria Island, Lagos",
     status: "active",
@@ -16,6 +17,7 @@ export const projects: Project[] = [
     id: "project-002",
     name: "Lekki Commercial Centre",
     client: "Coastal Properties Ltd.",
+    organizationId: "org-buildflow-demo",
     location: "Lekki Phase 1, Lagos",
     status: "active",
     budget: 320000000,
@@ -26,6 +28,7 @@ export const projects: Project[] = [
   {
     id: "project-003",
     name: "Ikeja Office Complex",
+    organizationId: "org-buildflow-demo",
     client: "MetroWorks Nigeria",
     location: "Ikeja, Lagos",
     status: "planning",
@@ -37,6 +40,7 @@ export const projects: Project[] = [
   {
     id: "project-004",
     name: "Ikoyi Residential Tower",
+    organizationId: "org-buildflow-demo",
     client: "Harbour Developments",
     location: "Ikoyi, Lagos",
     status: "completed",
@@ -48,6 +52,7 @@ export const projects: Project[] = [
   {
     id: "project-005",
     name: "Yaba Innovation Hub",
+    organizationId: "org-buildflow-demo",
     client: "UrbanBuild Group",
     location: "Yaba, Lagos",
     status: "at-risk",
@@ -59,6 +64,7 @@ export const projects: Project[] = [
   {
     id: "project-006",
     name: "Ajah Estate Development",
+    organizationId: "org-buildflow-demo",
     client: "Greenfield Estates",
     location: "Ajah, Lagos",
     status: "on-hold",

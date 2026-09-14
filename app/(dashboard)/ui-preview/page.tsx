@@ -74,6 +74,8 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header"
 import { PageSection } from "@/components/dashboard/page-section"
 
+import { AuthorizationStateView } from "@/components/auth/authorization-state"
+
 export default function UIPlaygroundPage() {
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 p-4 md:p-6 lg:p-8">
@@ -522,6 +524,25 @@ export default function UIPlaygroundPage() {
           </CardContent>
         </Card>
       </div>
+
+      <PageSection
+        title="Authorization States"
+        description="Preview the reusable authorization states used across BuildFlow."
+      >
+        <div className="grid gap-4 lg:grid-cols-2">
+          <AuthorizationStateView state="permission-denied">
+            <div className="rounded-lg border p-4">
+              Authorized content
+            </div>
+          </AuthorizationStateView>
+
+          <AuthorizationStateView state="membership-suspended">
+            <div className="rounded-lg border p-4">
+              Authorized content
+            </div>
+          </AuthorizationStateView>
+        </div>
+      </PageSection>
     </main>
   )
 }
