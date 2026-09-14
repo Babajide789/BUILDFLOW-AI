@@ -9,12 +9,26 @@ import {
 import { PageHeader } from "@/components/dashboard/page-header"
 import { PageSection } from "@/components/dashboard/page-section"
 import { ProjectsTable } from "@/components/dashboard/projects-table"
+import { PermissionGate } from "@/components/auth/permission-gate"
 import { Button } from "@/components/ui/button"
-import { projects } from "@/lib/data/projects"
+import {
+  currentOrganizationId,
+  getCurrentOrganizationMembership,
+} from "@/lib/auth"
+import { getOrganizationProjects } from "@/lib/data/project-access"
 import { getProjectMetrics } from "@/lib/data/project-metrics"
 
 export default function ProjectsPage() {
-  const metrics = getProjectMetrics(projects)
+  const organizationProjects = getOrganizationProjects(
+    currentOrganizationId
+  )
+
+  const membership =
+    getCurrentOrganizationMembership()
+
+  const metrics = getProjectMetrics(
+    organizationProjects
+  )
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 p-4 md:p-6 lg:p-8">
@@ -22,10 +36,18 @@ export default function ProjectsPage() {
         title="Projects"
         description="Manage and monitor all construction projects."
         actions={
-          <Button>
-            <Plus className="size-4" aria-hidden="true" />
-            New Project
-          </Button>
+          <PermissionGate
+            membership={membership}
+            permission="projects:create"
+          >
+            <Button>
+              <Plus
+                className="size-4"
+                aria-hidden="true"
+              />
+              New Project
+            </Button>
+          </PermissionGate>
         }
       />
 
@@ -140,7 +162,7 @@ export default function ProjectsPage() {
         title="Projects"
         description="Search and filter your construction projects."
       >
-        <ProjectsTable projects={projects} />
+        <ProjectsTable projects={organizationProjects} />
       </PageSection>
     </div>
   )

@@ -3,7 +3,11 @@ import { notFound } from "next/navigation"
 import { ProjectDetailHeader } from "@/components/dashboard/project-detail-header"
 import { ProjectOverview } from "@/components/dashboard/project-overview"
 import { ProjectSummary } from "@/components/dashboard/project-summary"
-import { projects } from "@/lib/data/projects"
+import {
+  currentOrganizationId,
+  getCurrentOrganizationMembership,
+} from "@/lib/auth"
+import { getOrganizationProject } from "@/lib/data/project-access"
 
 interface ProjectPageProps {
   params: Promise<{
@@ -16,8 +20,15 @@ export default async function ProjectPage({
 }: ProjectPageProps) {
   const { projectId } = await params
 
-  const project = projects.find(
-    (item) => item.id === projectId
+  const membership = getCurrentOrganizationMembership()
+
+  if (!membership) {
+    notFound()
+  }
+
+  const project = getOrganizationProject(
+    projectId,
+    currentOrganizationId
   )
 
   if (!project) {
