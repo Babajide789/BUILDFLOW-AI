@@ -1,23 +1,24 @@
-import { projects } from "@/lib/data/projects"
+import {
+  getOrganizationProjects as getOrganizationProjectsFromDb,
+  getProject as getProjectFromDb,
+} from "@/lib/data/db/projects"
 
-export function getOrganizationProject(
+import { mapProject, mapProjects } from "@/lib/data/project-mapper"
+
+export async function getOrganizationProject(
   projectId: string,
   organizationId: string
 ) {
-  return (
-    projects.find(
-      (project) =>
-        project.id === projectId &&
-        project.organizationId === organizationId
-    ) ?? null
-  )
+  const project = await getProjectFromDb(projectId, organizationId)
+
+  return project ? mapProject(project) : null
 }
 
-export function getOrganizationProjects(
+export async function getOrganizationProjects(
   organizationId: string
 ) {
-  return projects.filter(
-    (project) =>
-      project.organizationId === organizationId
-  )
+  const projects =
+    await getOrganizationProjectsFromDb(organizationId)
+
+  return mapProjects(projects)
 }

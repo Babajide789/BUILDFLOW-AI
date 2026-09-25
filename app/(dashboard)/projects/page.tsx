@@ -39,7 +39,7 @@ export default async function ProjectsPage() {
   )
 
   const organizationProjects =
-    getOrganizationProjects(
+    await getOrganizationProjects(
       membership.organizationId
     )
 

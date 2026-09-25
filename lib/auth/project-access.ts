@@ -1,33 +1,24 @@
 import { notFound } from "next/navigation"
 
-import type {
-  OrganizationMembership,
-  Permission,
-} from "@/lib/types/authorization"
+import {
+  getCurrentOrganizationMembership,
+} from "@/lib/auth"
 
-import { hasPermission } from "./authorization"
-import { getCurrentOrganizationMembership } from "./current"
-import { getCurrentAuthenticatedUser } from "./session"
-import { getOrganizationProject } from "@/lib/data/project-access"
+import {
+  requirePermission,
+} from "@/lib/auth/guards"
 
-export interface AuthorizedProjectAccess {
-  project: NonNullable<
-    ReturnType<typeof getOrganizationProject>
-  >
-  membership: OrganizationMembership
-}
+import {
+  getOrganizationProject,
+} from "@/lib/data/project-access"
 
 export async function requireProjectAccess(
   projectId: string,
-  permission: Permission = "projects:read"
-): Promise<AuthorizedProjectAccess> {
-  const user =
-    await getCurrentAuthenticatedUser()
-
-  if (!user) {
-    notFound()
-  }
-
+  permission:
+    | "projects:read"
+    | "projects:update"
+    | "projects:delete"
+) {
   const membership =
     await getCurrentOrganizationMembership()
 
@@ -35,14 +26,16 @@ export async function requireProjectAccess(
     notFound()
   }
 
-  if (!hasPermission(membership, permission)) {
-    notFound()
-  }
-
-  const project = getOrganizationProject(
-    projectId,
-    membership.organizationId
+  requirePermission(
+    membership,
+    permission
   )
+
+  const project =
+    await getOrganizationProject(
+      projectId,
+      membership.organizationId
+    )
 
   if (!project) {
     notFound()
