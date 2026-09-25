@@ -10,11 +10,18 @@ export interface OrganizationScopedResource {
 }
 
 export function canAccessOrganizationResource(
-  membership: OrganizationMembership | null | undefined,
+  membership:
+    | OrganizationMembership
+    | null
+    | undefined,
   resource: OrganizationScopedResource,
   permission: Permission = "projects:read"
 ): boolean {
-  if (!membership || membership.status !== "active") {
+  if (!membership) {
+    return false
+  }
+
+  if (membership.status !== "active") {
     return false
   }
 
@@ -25,11 +32,17 @@ export function canAccessOrganizationResource(
     return false
   }
 
-  return hasPermission(membership, permission)
+  return hasPermission(
+    membership,
+    permission
+  )
 }
 
 export function canModifyOrganizationResource(
-  membership: OrganizationMembership | null | undefined,
+  membership:
+    | OrganizationMembership
+    | null
+    | undefined,
   resource: OrganizationScopedResource
 ): boolean {
   return canAccessOrganizationResource(

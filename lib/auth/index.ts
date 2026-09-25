@@ -1,13 +1,13 @@
 export {
-  canCreateProjects,
-  canDeleteProjects,
-  canInviteMembers,
-  canManageMembers,
-  canManageOrganization,
-  canUpdateProjects,
   hasPermission,
   hasRole,
   isOrganizationOwner,
+  canManageOrganization,
+  canInviteMembers,
+  canManageMembers,
+  canCreateProjects,
+  canUpdateProjects,
+  canDeleteProjects,
 } from "./authorization"
 
 export {
@@ -15,24 +15,21 @@ export {
   getUserOrganizationMemberships,
 } from "./membership"
 
-export { rolePermissions } from "./permissions"
-
 export {
   requireOrganizationMembership,
-  requireOrganizationPermission,
   requirePermission,
+  requireOrganizationPermission,
 } from "./guards"
+
+export {
+  getCurrentUser,
+  getCurrentOrganizationMembership,
+} from "./current"
 
 export {
   canAccessOrganizationResource,
   canModifyOrganizationResource,
 } from "./resource-access"
-
-export {
-  currentOrganizationId,
-  getCurrentOrganizationMembership,
-  getCurrentUser,
-} from "./current"
 
 export {
   authorized,
@@ -43,3 +40,13 @@ export type {
   AuthorizationResult,
   AuthorizationState,
 } from "./states"
+
+export {
+  authenticated,
+  unauthenticated,
+} from "./auth-state"
+
+export type {
+  AuthenticationResult,
+  AuthenticationState,
+} from "./auth-state"

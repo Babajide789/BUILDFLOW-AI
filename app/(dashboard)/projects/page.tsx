@@ -12,23 +12,41 @@ import { ProjectsTable } from "@/components/dashboard/projects-table"
 import { PermissionGate } from "@/components/auth/permission-gate"
 import { Button } from "@/components/ui/button"
 import {
-  currentOrganizationId,
   getCurrentOrganizationMembership,
 } from "@/lib/auth"
 import { getOrganizationProjects } from "@/lib/data/project-access"
 import { getProjectMetrics } from "@/lib/data/project-metrics"
+import { requirePermission } from "@/lib/auth/guards"
 
-export default function ProjectsPage() {
-  const organizationProjects = getOrganizationProjects(
-    currentOrganizationId
-  )
-
+export default async function ProjectsPage() {
   const membership =
-    getCurrentOrganizationMembership()
+    await getCurrentOrganizationMembership()
 
-  const metrics = getProjectMetrics(
-    organizationProjects
+  if (!membership) {
+    return (
+      <div className="mx-auto w-full max-w-7xl p-4 md:p-6 lg:p-8">
+        <PageHeader
+          title="Projects"
+          description="You do not currently have access to an organization."
+        />
+      </div>
+    )
+  }
+
+  requirePermission(
+    membership,
+    "projects:read"
   )
+
+  const organizationProjects =
+    getOrganizationProjects(
+      membership.organizationId
+    )
+
+  const metrics =
+    getProjectMetrics(
+      organizationProjects
+    )
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 p-4 md:p-6 lg:p-8">

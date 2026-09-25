@@ -1,17 +1,29 @@
-import { currentUser } from "@/lib/data/users"
+import {
+  getCurrentAuthenticatedUser,
+} from "./session"
 
-import { getOrganizationMembership } from "./membership"
+import {
+  getUserOrganizationMemberships,
+} from "./membership"
 
-export const currentOrganizationId =
-  "org-buildflow-demo"
-
-export function getCurrentUser() {
-  return currentUser
+export async function getCurrentUser() {
+  return getCurrentAuthenticatedUser()
 }
 
-export function getCurrentOrganizationMembership() {
-  return getOrganizationMembership(
-    currentUser.id,
-    currentOrganizationId
+export async function getCurrentOrganizationMembership() {
+  const user = await getCurrentAuthenticatedUser()
+
+  if (!user) {
+    return null
+  }
+
+  const memberships =
+    await getUserOrganizationMemberships(user.id)
+
+  return (
+    memberships.find(
+      (membership) =>
+        membership.status === "active"
+    ) ?? null
   )
 }
