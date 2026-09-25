@@ -1,32 +1,27 @@
-import { currentUser } from "@/lib/data/users"
-import { getOrganizationMembership } from "@/lib/auth/membership"
 import {
   canCreateProjects,
-  canInviteMembers,
+  canDeleteProjects,
+  canManageMembers,
   canManageOrganization,
-  hasPermission,
-} from "@/lib/auth/authorization"
+  canUpdateProjects,
+  getCurrentOrganizationMembership,
+} from "@/lib/auth"
 
-const organizationId = "org-buildflow-demo"
+export async function getCurrentAuthorizationDemo() {
+  const membership =
+    await getCurrentOrganizationMembership()
 
-export const currentUserMembership =
-  getOrganizationMembership(
-    currentUser.id,
-    organizationId
-  )
-
-export const currentUserAuthorization = {
-  canManageOrganization: canManageOrganization(
-    currentUserMembership
-  ),
-  canInviteMembers: canInviteMembers(
-    currentUserMembership
-  ),
-  canCreateProjects: canCreateProjects(
-    currentUserMembership
-  ),
-  canDeleteProjects: hasPermission(
-    currentUserMembership,
-    "projects:delete"
-  ),
+  return {
+    membership,
+    canManageOrganization:
+      canManageOrganization(membership),
+    canManageMembers:
+      canManageMembers(membership),
+    canCreateProjects:
+      canCreateProjects(membership),
+    canUpdateProjects:
+      canUpdateProjects(membership),
+    canDeleteProjects:
+      canDeleteProjects(membership),
+  }
 }

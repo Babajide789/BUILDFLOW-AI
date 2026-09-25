@@ -7,7 +7,7 @@ import type {
   Permission,
 } from "@/lib/types/authorization"
 
-import { hasPermission } from "@/lib/auth"
+import { hasPermission } from "@/lib/auth/authorization"
 
 interface PermissionGateProps {
   membership: OrganizationMembership | null | undefined

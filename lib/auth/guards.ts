@@ -6,14 +6,15 @@ import type {
 import { hasPermission } from "./authorization"
 import { getOrganizationMembership } from "./membership"
 
-export function requireOrganizationMembership(
+export async function requireOrganizationMembership(
   userId: string,
   organizationId: string
-): OrganizationMembership {
-  const membership = getOrganizationMembership(
-    userId,
-    organizationId
-  )
+): Promise<OrganizationMembership> {
+  const membership =
+    await getOrganizationMembership(
+      userId,
+      organizationId
+    )
 
   if (!membership) {
     throw new Error(
@@ -49,15 +50,16 @@ export function requirePermission(
   return membership
 }
 
-export function requireOrganizationPermission(
+export async function requireOrganizationPermission(
   userId: string,
   organizationId: string,
   permission: Permission
-): OrganizationMembership {
-  const membership = requireOrganizationMembership(
-    userId,
-    organizationId
-  )
+): Promise<OrganizationMembership> {
+  const membership =
+    await requireOrganizationMembership(
+      userId,
+      organizationId
+    )
 
   return requirePermission(
     membership,
