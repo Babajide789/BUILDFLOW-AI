@@ -17,6 +17,7 @@ import {
 import { getOrganizationProjects } from "@/lib/data/project-access"
 import { getProjectMetrics } from "@/lib/data/project-metrics"
 import { requirePermission } from "@/lib/auth/guards"
+import Link from "next/link";
 
 export default async function ProjectsPage() {
   const membership =
@@ -63,7 +64,10 @@ export default async function ProjectsPage() {
                 className="size-4"
                 aria-hidden="true"
               />
-              New Project
+              
+              <Link href="/projects/new">                
+                New Project
+              </Link>
             </Button>
           </PermissionGate>
         }

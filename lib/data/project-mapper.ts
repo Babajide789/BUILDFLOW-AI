@@ -1,5 +1,4 @@
 import type { Project as PrismaProject } from "@/generated/prisma/client"
-
 import type {
   Project,
   ProjectStatus,
@@ -21,8 +20,10 @@ export function mapProject(
 ): Project {
   return {
     id: project.id,
-    name: project.name,
     organizationId: project.organizationId,
+    name: project.name,
+    slug: project.slug,
+    description: project.description ?? "",
     client: project.client ?? "",
     location: project.location ?? "",
     status: statusMap[project.status],
