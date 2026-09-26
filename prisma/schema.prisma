@@ -19,6 +19,14 @@ enum MembershipStatus {
   SUSPENDED
 }
 
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  PLANNING
+  AT_RISK
+  ON_HOLD
+}
+
 model User {
   id        String  @id @default(cuid())
   name      String
@@ -46,6 +54,7 @@ model Organization {
   location    String?
 
   memberships Membership[]
+  projects    Project[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -69,6 +78,33 @@ model Membership {
   @@unique([userId, organizationId])
   @@index([userId])
   @@index([organizationId])
+}
+
+model Project {
+  id             String        @id @default(cuid())
+  organizationId String
+
+  name        String
+  slug        String
+  description String?
+  client      String?
+  location    String?
+
+  status   ProjectStatus @default(PLANNING)
+  budget   Decimal       @db.Decimal(18, 2)
+  progress Int           @default(0)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([organizationId, status])
 }
 
 model Account {

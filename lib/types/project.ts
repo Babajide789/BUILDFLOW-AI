@@ -7,8 +7,10 @@ export type ProjectStatus =
 
 export interface Project {
   id: string
-  name: string
   organizationId: string
+  name: string
+  slug: string
+  description: string
   client: string
   location: string
   status: ProjectStatus

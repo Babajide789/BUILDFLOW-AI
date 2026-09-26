@@ -7,10 +7,14 @@ import {
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import type { Project, ProjectStatus } from "@/lib/types/project"
+import type {
+  Project,
+  ProjectStatus,
+} from "@/lib/types/project"
 
 interface ProjectDetailHeaderProps {
   project: Project
+  showEditAction?: boolean
 }
 
 function getStatusLabel(status: ProjectStatus) {
@@ -47,6 +51,10 @@ function getStatusVariant(
 }
 
 function formatDate(value: string) {
+  if (!value) {
+    return "Not set"
+  }
+
   return new Intl.DateTimeFormat("en-NG", {
     day: "numeric",
     month: "short",
@@ -56,6 +64,7 @@ function formatDate(value: string) {
 
 export function ProjectDetailHeader({
   project,
+  showEditAction = true,
 }: ProjectDetailHeaderProps) {
   return (
     <div className="space-y-5">
@@ -63,7 +72,10 @@ export function ProjectDetailHeader({
         href="/projects"
         className="-ml-2 inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ArrowLeft className="size-4" aria-hidden="true" />
+        <ArrowLeft
+          className="size-4"
+          aria-hidden="true"
+        />
         Back to Projects
       </Link>
 
@@ -85,7 +97,7 @@ export function ProjectDetailHeader({
                 className="size-4"
                 aria-hidden="true"
               />
-              {project.client}
+              {project.client || "No client specified"}
             </span>
 
             <span className="inline-flex items-center gap-1.5">
@@ -93,20 +105,32 @@ export function ProjectDetailHeader({
                 className="size-4"
                 aria-hidden="true"
               />
-              {project.location}
+              {project.location || "No location specified"}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays
-              className="size-4"
-              aria-hidden="true"
-            />
-            {formatDate(project.startDate)} –{" "}
-            {formatDate(project.endDate)}
-          </span>
+        <div className="flex flex-col items-start gap-3 lg:items-end">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDays
+                className="size-4"
+                aria-hidden="true"
+              />
+
+              {formatDate(project.startDate)} –{" "}
+              {formatDate(project.endDate)}
+            </span>
+          </div>
+
+          {showEditAction ? (
+            <Link
+              href={`/projects/${project.id}/edit`}
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            >
+              Edit project
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
