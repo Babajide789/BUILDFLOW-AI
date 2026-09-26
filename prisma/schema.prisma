@@ -27,6 +27,25 @@ enum ProjectStatus {
   ON_HOLD
 }
 
+enum BoqUnit {
+  ITEM
+  M
+  M2
+  M3
+  KG
+  TONNE
+  LITRE
+  DAY
+  HOUR
+  LS
+}
+
+enum BoqItemStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
 model User {
   id        String  @id @default(cuid())
   name      String
@@ -81,7 +100,7 @@ model Membership {
 }
 
 model Project {
-  id             String        @id @default(cuid())
+  id             String @id @default(cuid())
   organizationId String
 
   name        String
@@ -99,12 +118,70 @@ model Project {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  boq Boq?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@index([organizationId, status])
+}
+
+model Boq {
+  id        String @id @default(cuid())
+  projectId String @unique
+
+  name        String
+  description String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  sections BoqSection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BoqSection {
+  id    String @id @default(cuid())
+  boqId String
+
+  name        String
+  description String?
+  sortOrder   Int     @default(0)
+
+  boq   Boq       @relation(fields: [boqId], references: [id], onDelete: Cascade)
+  items BoqItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([boqId])
+  @@index([boqId, sortOrder])
+}
+
+model BoqItem {
+  id        String @id @default(cuid())
+  sectionId String
+
+  itemCode    String
+  description String
+  unit        BoqUnit
+  quantity    Decimal @db.Decimal(18, 4)
+  rate        Decimal @db.Decimal(18, 2)
+
+  status    BoqItemStatus @default(ACTIVE)
+  sortOrder Int           @default(0)
+
+  section BoqSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sectionId, itemCode])
+  @@index([sectionId])
+  @@index([sectionId, sortOrder])
 }
 
 model Account {
