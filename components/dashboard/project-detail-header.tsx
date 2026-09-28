@@ -2,6 +2,7 @@ import Link from "next/link"
 import {
   ArrowLeft,
   CalendarDays,
+  ClipboardList,
   MapPin,
   UserRound,
 } from "lucide-react"
@@ -35,16 +36,12 @@ function getStatusVariant(
   switch (status) {
     case "active":
       return "default"
-
     case "completed":
       return "secondary"
-
     case "at-risk":
       return "destructive"
-
     case "planning":
       return "outline"
-
     case "on-hold":
       return "secondary"
   }
@@ -117,20 +114,32 @@ export function ProjectDetailHeader({
                 className="size-4"
                 aria-hidden="true"
               />
-
               {formatDate(project.startDate)} –{" "}
               {formatDate(project.endDate)}
             </span>
           </div>
 
-          {showEditAction ? (
+          <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/projects/${project.id}/edit`}
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+              href={`/projects/${project.id}/boq`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Edit project
+              <ClipboardList
+                className="size-4"
+                aria-hidden="true"
+              />
+              View BOQ
             </Link>
-          ) : null}
+
+            {showEditAction ? (
+              <Link
+                href={`/projects/${project.id}/edit`}
+                className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+              >
+                Edit project
+              </Link>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

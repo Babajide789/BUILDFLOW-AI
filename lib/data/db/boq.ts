@@ -13,13 +13,21 @@ export interface CreateBoqInput {
 
 export interface CreateBoqSectionInput {
   boqId: string
+  organizationId: string
   name: string
+  description?: string | null
+  sortOrder?: number
+}
+
+export interface UpdateBoqSectionInput {
+  name?: string
   description?: string | null
   sortOrder?: number
 }
 
 export interface CreateBoqItemInput {
   sectionId: string
+  organizationId: string
   itemCode: string
   description: string
   unit: BoqUnit
@@ -29,9 +37,17 @@ export interface CreateBoqItemInput {
   sortOrder?: number
 }
 
-export async function createBoq(
-  input: CreateBoqInput
-) {
+export interface UpdateBoqItemInput {
+  itemCode?: string
+  description?: string
+  unit?: BoqUnit
+  quantity?: Prisma.Decimal | number | string
+  rate?: Prisma.Decimal | number | string
+  status?: BoqItemStatus
+  sortOrder?: number
+}
+
+export async function createBoq(input: CreateBoqInput) {
   return prisma.boq.create({
     data: {
       projectId: input.projectId,
@@ -41,9 +57,7 @@ export async function createBoq(
   })
 }
 
-export async function getProjectBoq(
-  projectId: string
-) {
+export async function getProjectBoq(projectId: string) {
   return prisma.boq.findUnique({
     where: {
       projectId,
@@ -78,12 +92,90 @@ export async function createBoqSection(
   })
 }
 
+export async function updateBoqSection(
+  sectionId: string,
+  organizationId: string,
+  input: UpdateBoqSectionInput
+) {
+  const section = await prisma.boqSection.findFirst({
+    where: {
+      id: sectionId,
+      boq: {
+        project: {
+          organizationId,
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!section) {
+    return null
+  }
+
+  return prisma.boqSection.update({
+    where: {
+      id: section.id,
+    },
+    data: input,
+  })
+}
+
+export async function deleteBoqSection(
+  sectionId: string,
+  organizationId: string
+) {
+  const section = await prisma.boqSection.findFirst({
+    where: {
+      id: sectionId,
+      boq: {
+        project: {
+          organizationId,
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!section) {
+    return null
+  }
+
+  return prisma.boqSection.delete({
+    where: {
+      id: section.id,
+    },
+  })
+}
+
 export async function createBoqItem(
   input: CreateBoqItemInput
 ) {
+  const section = await prisma.boqSection.findFirst({
+    where: {
+      id: input.sectionId,
+      boq: {
+        project: {
+          organizationId: input.organizationId,
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!section) {
+    return null
+  }
+
   return prisma.boqItem.create({
     data: {
-      sectionId: input.sectionId,
+      sectionId: section.id,
       itemCode: input.itemCode,
       description: input.description,
       unit: input.unit,
@@ -91,6 +183,70 @@ export async function createBoqItem(
       rate: input.rate,
       status: input.status ?? "ACTIVE",
       sortOrder: input.sortOrder ?? 0,
+    },
+  })
+}
+
+export async function updateBoqItem(
+  itemId: string,
+  organizationId: string,
+  input: UpdateBoqItemInput
+) {
+  const item = await prisma.boqItem.findFirst({
+    where: {
+      id: itemId,
+      section: {
+        boq: {
+          project: {
+            organizationId,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!item) {
+    return null
+  }
+
+  return prisma.boqItem.update({
+    where: {
+      id: item.id,
+    },
+    data: input,
+  })
+}
+
+export async function deleteBoqItem(
+  itemId: string,
+  organizationId: string
+) {
+  const item = await prisma.boqItem.findFirst({
+    where: {
+      id: itemId,
+      section: {
+        boq: {
+          project: {
+            organizationId,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  })
+
+  if (!item) {
+    return null
+  }
+
+  return prisma.boqItem.delete({
+    where: {
+      id: item.id,
     },
   })
 }

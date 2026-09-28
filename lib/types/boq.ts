@@ -37,6 +37,16 @@ export interface BoqSection {
   items: BoqItem[]
 }
 
+export interface BoqCommercialSummary {
+  totalAmount: number
+  activeAmount: number
+  completedAmount: number
+  cancelledAmount: number
+  completedPercentage: number
+  activePercentage: number
+  cancelledPercentage: number
+}
+
 export interface Boq {
   id: string
   projectId: string
@@ -44,4 +54,5 @@ export interface Boq {
   description: string
   sections: BoqSection[]
   totalAmount: number
+  commercialSummary: BoqCommercialSummary
 }

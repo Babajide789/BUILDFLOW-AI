@@ -11,10 +11,16 @@ const ownerPermissions: Permission[] = [
   "members:invite",
   "members:update",
   "members:remove",
+
   "projects:read",
   "projects:create",
   "projects:update",
   "projects:delete",
+
+  "boq:read",
+  "boq:create",
+  "boq:update",
+  "boq:delete",
 ]
 
 const adminPermissions: Permission[] = [
@@ -24,17 +30,27 @@ const adminPermissions: Permission[] = [
   "members:invite",
   "members:update",
   "members:remove",
+
   "projects:read",
   "projects:create",
   "projects:update",
   "projects:delete",
+
+  "boq:read",
+  "boq:create",
+  "boq:update",
+  "boq:delete",
 ]
 
 const memberPermissions: Permission[] = [
   "organization:read",
   "members:read",
+
   "projects:read",
   "projects:update",
+
+  "boq:read",
+  "boq:update",
 ]
 
 export const rolePermissions: Record<

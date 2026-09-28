@@ -83,15 +83,50 @@ export function mapBoq(
 ): Boq {
   const sections = boq.sections.map(mapBoqSection)
 
-  const totalAmount = sections.reduce(
-    (sectionTotal, section) =>
-      sectionTotal +
-      section.items.reduce(
-        (itemTotal, item) => itemTotal + item.amount,
-        0
-      ),
+  const items = sections.flatMap(
+    (section) => section.items
+  )
+
+  const totalAmount = items.reduce(
+    (total, item) => total + item.amount,
     0
   )
+
+  const activeAmount = items
+    .filter((item) => item.status === "active")
+    .reduce(
+      (total, item) => total + item.amount,
+      0
+    )
+
+  const completedAmount = items
+    .filter((item) => item.status === "completed")
+    .reduce(
+      (total, item) => total + item.amount,
+      0
+    )
+
+  const cancelledAmount = items
+    .filter((item) => item.status === "cancelled")
+    .reduce(
+      (total, item) => total + item.amount,
+      0
+    )
+
+  const completedPercentage =
+    totalAmount > 0
+      ? (completedAmount / totalAmount) * 100
+      : 0
+
+  const activePercentage =
+    totalAmount > 0
+      ? (activeAmount / totalAmount) * 100
+      : 0
+
+  const cancelledPercentage =
+    totalAmount > 0
+      ? (cancelledAmount / totalAmount) * 100
+      : 0
 
   return {
     id: boq.id,
@@ -100,5 +135,14 @@ export function mapBoq(
     description: boq.description ?? "",
     sections,
     totalAmount,
+    commercialSummary: {
+      totalAmount,
+      activeAmount,
+      completedAmount,
+      cancelledAmount,
+      completedPercentage,
+      activePercentage,
+      cancelledPercentage,
+    },
   }
 }
