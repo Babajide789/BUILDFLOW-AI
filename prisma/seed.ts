@@ -18,6 +18,171 @@ const prisma = new PrismaClient({
   adapter,
 })
 
+async function seedProjectBoq(projectId: string) {
+  const boq = await prisma.boq.upsert({
+    where: {
+      projectId,
+    },
+    update: {
+      name: "Main Works BOQ",
+      description:
+        "Baseline bill of quantities for the project.",
+    },
+    create: {
+      projectId,
+      name: "Main Works BOQ",
+      description:
+        "Baseline bill of quantities for the project.",
+    },
+  })
+
+  const sections = [
+    {
+      name: "Preliminaries",
+      description:
+        "General preliminaries and project establishment works.",
+      items: [
+        {
+          itemCode: "PRE-001",
+          description:
+            "Site establishment and mobilization",
+          unit: "LS" as const,
+          quantity: "1",
+          rate: "4500000",
+        },
+        {
+          itemCode: "PRE-002",
+          description:
+            "Temporary site facilities and services",
+          unit: "LS" as const,
+          quantity: "1",
+          rate: "2800000",
+        },
+      ],
+    },
+    {
+      name: "Substructure",
+      description:
+        "Excavation, foundation and ground floor works.",
+      items: [
+        {
+          itemCode: "SUB-001",
+          description:
+            "Excavation for foundation trenches",
+          unit: "M3" as const,
+          quantity: "180",
+          rate: "8500",
+        },
+        {
+          itemCode: "SUB-002",
+          description:
+            "Reinforced concrete foundation",
+          unit: "M3" as const,
+          quantity: "95",
+          rate: "185000",
+        },
+        {
+          itemCode: "SUB-003",
+          description:
+            "High tensile reinforcement",
+          unit: "TONNE" as const,
+          quantity: "14.5",
+          rate: "1250000",
+        },
+      ],
+    },
+    {
+      name: "Superstructure",
+      description:
+        "Structural frame and associated works.",
+      items: [
+        {
+          itemCode: "SUP-001",
+          description:
+            "Reinforced concrete columns and beams",
+          unit: "M3" as const,
+          quantity: "120",
+          rate: "210000",
+        },
+        {
+          itemCode: "SUP-002",
+          description: "Blockwork",
+          unit: "M2" as const,
+          quantity: "1850",
+          rate: "9500",
+        },
+      ],
+    },
+  ]
+
+  for (
+    let sectionIndex = 0;
+    sectionIndex < sections.length;
+    sectionIndex++
+  ) {
+    const sectionData = sections[sectionIndex]
+
+    const sectionId = `${boq.id}-${sectionData.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")}`
+
+    const section = await prisma.boqSection.upsert({
+      where: {
+        id: sectionId,
+      },
+      update: {
+        name: sectionData.name,
+        description: sectionData.description,
+        sortOrder: sectionIndex,
+      },
+      create: {
+        id: sectionId,
+        boqId: boq.id,
+        name: sectionData.name,
+        description: sectionData.description,
+        sortOrder: sectionIndex,
+      },
+    })
+
+    for (
+      let itemIndex = 0;
+      itemIndex < sectionData.items.length;
+      itemIndex++
+    ) {
+      const item = sectionData.items[itemIndex]
+
+      await prisma.boqItem.upsert({
+        where: {
+          sectionId_itemCode: {
+            sectionId: section.id,
+            itemCode: item.itemCode,
+          },
+        },
+        update: {
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          rate: item.rate,
+          status: "ACTIVE",
+          sortOrder: itemIndex,
+        },
+        create: {
+          sectionId: section.id,
+          itemCode: item.itemCode,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          rate: item.rate,
+          status: "ACTIVE",
+          sortOrder: itemIndex,
+        },
+      })
+    }
+  }
+
+  return boq
+}
+
 async function main() {
   const user = await prisma.user.findFirst({
     orderBy: {
@@ -39,7 +204,8 @@ async function main() {
     create: {
       name: "BuildFlow Demo",
       slug: "buildflow-demo",
-      description: "Development organization for BuildFlow AI.",
+      description:
+        "Development organization for BuildFlow AI.",
       location: "Lagos, Nigeria",
     },
   })
@@ -132,8 +298,10 @@ async function main() {
     },
   ]
 
+  const seededProjects = []
+
   for (const project of demoProjects) {
-    await prisma.project.upsert({
+    const seededProject = await prisma.project.upsert({
       where: {
         organizationId_slug: {
           organizationId: organization.id,
@@ -155,9 +323,28 @@ async function main() {
         ...project,
       },
     })
+
+    seededProjects.push(seededProject)
   }
 
-  console.log("BuildFlow development bootstrap complete.")
+  const victoriaIslandResidence = seededProjects.find(
+    (project) =>
+      project.slug === "victoria-island-residence"
+  )
+
+  if (!victoriaIslandResidence) {
+    throw new Error(
+      "Victoria Island Residence project was not found after seeding."
+    )
+  }
+
+  const boq = await seedProjectBoq(
+    victoriaIslandResidence.id
+  )
+
+  console.log(
+    "BuildFlow development bootstrap complete."
+  )
 
   console.log({
     userId: user.id,
@@ -166,6 +353,8 @@ async function main() {
     role: membership.role,
     status: membership.status,
     projectsSeeded: demoProjects.length,
+    boqId: boq.id,
+    boqProjectId: boq.projectId,
   })
 }
 
