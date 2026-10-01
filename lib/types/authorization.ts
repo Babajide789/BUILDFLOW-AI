@@ -24,6 +24,10 @@ export type Permission =
   | "boq:create"
   | "boq:update"
   | "boq:delete"
+  | "procurement:read"
+  | "procurement:create"
+  | "procurement:update"
+  | "procurement:delete"
 
 export interface OrganizationMembership {
   id: string

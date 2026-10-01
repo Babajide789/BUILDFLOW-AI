@@ -5,6 +5,12 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { getCurrentOrganizationMembership } from "@/lib/auth"
+import { requireBoqAccess } from "@/lib/auth/boq-access"
+import {
+  requireProcurementAccess,
+  requireProjectProcurementRequestAccess,
+  requireSupplierAccess,
+} from "@/lib/auth/procurement-access"
 import { requirePermission } from "@/lib/auth/guards"
 import {
   createBoq,
@@ -15,7 +21,17 @@ import {
   updateBoqItem,
   updateBoqSection,
 } from "@/lib/data/db/boq"
-import { requireBoqAccess } from "@/lib/auth/boq-access"
+import {
+  createProcurementRequest,
+  createProcurementRequestItem,
+  createSupplier,
+  deleteProcurementRequest,
+  deleteProcurementRequestItem,
+  deleteSupplier,
+  updateProcurementRequest,
+  updateProcurementRequestItem,
+  updateSupplier,
+} from "@/lib/data/db/procurement"
 import {
   createProject,
   deleteProject,
@@ -47,6 +63,19 @@ const boqUnitSchema = z.enum([
 const boqItemStatusSchema = z.enum([
   "ACTIVE",
   "COMPLETED",
+  "CANCELLED",
+])
+
+const supplierStatusSchema = z.enum([
+  "ACTIVE",
+  "INACTIVE",
+])
+
+const procurementRequestStatusSchema = z.enum([
+  "DRAFT",
+  "SUBMITTED",
+  "APPROVED",
+  "REJECTED",
   "CANCELLED",
 ])
 
@@ -93,6 +122,7 @@ const createProjectSchema = z.object({
     .trim()
     .refine((value) => {
       const amount = Number(value)
+
       return (
         Number.isInteger(amount) &&
         amount >= 0 &&
@@ -198,6 +228,124 @@ const deleteBoqItemSchema = z.object({
   projectId: z.string().trim().min(1),
 })
 
+const createSupplierSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Supplier name must be at least 2 characters.")
+    .max(160, "Supplier name is too long."),
+  contact: z
+    .string()
+    .trim()
+    .max(160, "Contact name is too long.")
+    .optional(),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid supplier email.")
+    .max(160, "Supplier email is too long.")
+    .optional()
+    .or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .max(50, "Supplier phone number is too long.")
+    .optional(),
+  address: z
+    .string()
+    .trim()
+    .max(500, "Supplier address is too long.")
+    .optional(),
+  status: supplierStatusSchema.optional(),
+})
+
+const updateSupplierSchema = createSupplierSchema.extend({
+  supplierId: z.string().trim().min(1),
+})
+
+const deleteSupplierSchema = z.object({
+  supplierId: z.string().trim().min(1),
+})
+
+const createProcurementRequestSchema = z.object({
+  projectId: z.string().trim().min(1),
+  reference: z
+    .string()
+    .trim()
+    .min(2, "Request reference is required.")
+    .max(100, "Request reference is too long."),
+  description: z
+    .string()
+    .trim()
+    .max(1000, "Request description is too long.")
+    .optional(),
+  supplierId: z
+    .string()
+    .trim()
+    .optional(),
+  status: procurementRequestStatusSchema.optional(),
+})
+
+const updateProcurementRequestSchema =
+  createProcurementRequestSchema.extend({
+    requestId: z.string().trim().min(1),
+  })
+
+const deleteProcurementRequestSchema = z.object({
+  requestId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+})
+
+const createProcurementRequestItemSchema = z.object({
+  projectId: z.string().trim().min(1),
+  procurementRequestId: z.string().trim().min(1),
+  boqItemId: z.string().trim().min(1),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Quantity is required.")
+    .refine((value) => {
+      const amount = Number(value)
+
+      return (
+        Number.isFinite(amount) &&
+        amount > 0
+      )
+    }, "Enter a valid quantity greater than zero."),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Item notes are too long.")
+    .optional(),
+})
+
+const updateProcurementRequestItemSchema = z.object({
+  itemId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Quantity is required.")
+    .refine((value) => {
+      const amount = Number(value)
+
+      return (
+        Number.isFinite(amount) &&
+        amount > 0
+      )
+    }, "Enter a valid quantity greater than zero."),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Item notes are too long.")
+    .optional(),
+})
+
+const deleteProcurementRequestItemSchema = z.object({
+  itemId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+})
+
 const statusMap = {
   planning: "PLANNING",
   active: "ACTIVE",
@@ -208,6 +356,7 @@ const statusMap = {
 
 function getOptionalValue(value: string | undefined) {
   const trimmed = value?.trim()
+
   return trimmed ? trimmed : null
 }
 
@@ -228,6 +377,15 @@ async function revalidateBoq(projectId: string) {
   revalidatePath(`/projects/${projectId}`)
 }
 
+async function revalidateProcurement(
+  projectId: string
+) {
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(
+    `/projects/${projectId}/procurement`
+  )
+}
+
 export async function createProjectAction(
   formData: FormData
 ) {
@@ -240,7 +398,10 @@ export async function createProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:create")
+  requirePermission(
+    membership,
+    "projects:create"
+  )
 
   const parsed = createProjectSchema.safeParse({
     name: formData.get("name"),
@@ -270,7 +431,9 @@ export async function createProjectAction(
       organizationId: membership.organizationId,
       name: data.name,
       slug: data.slug,
-      description: getOptionalValue(data.description),
+      description: getOptionalValue(
+        data.description
+      ),
       client: getOptionalValue(data.client),
       location: getOptionalValue(data.location),
       budget: data.budget,
@@ -309,7 +472,10 @@ export async function updateProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:update")
+  requirePermission(
+    membership,
+    "projects:update"
+  )
 
   const parsed = updateProjectSchema.safeParse({
     name: formData.get("name"),
@@ -342,13 +508,17 @@ export async function updateProjectAction(
       {
         name: data.name,
         slug: data.slug,
-        description: getOptionalValue(data.description),
+        description: getOptionalValue(
+          data.description
+        ),
         client: getOptionalValue(data.client),
         location: getOptionalValue(data.location),
         status: statusMap[data.status],
         budget: data.budget,
         progress: Number(data.progress),
-        startDate: getOptionalDate(data.startDate),
+        startDate: getOptionalDate(
+          data.startDate
+        ),
         endDate: getOptionalDate(data.endDate),
       }
     )
@@ -373,7 +543,10 @@ export async function updateProjectAction(
 
   revalidatePath("/projects")
   revalidatePath(`/projects/${project.id}`)
-  revalidatePath(`/projects/${project.id}/edit`)
+  revalidatePath(
+    `/projects/${project.id}/edit`
+  )
+
   redirect(`/projects/${project.id}`)
 }
 
@@ -389,7 +562,10 @@ export async function deleteProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:delete")
+  requirePermission(
+    membership,
+    "projects:delete"
+  )
 
   const project = await deleteProject(
     projectId,
@@ -402,6 +578,7 @@ export async function deleteProjectAction(
 
   revalidatePath("/projects")
   revalidatePath(`/projects/${projectId}`)
+
   redirect("/projects")
 }
 
@@ -446,7 +623,9 @@ export async function createBoqAction(
   await createBoq({
     projectId: data.projectId,
     name: data.name,
-    description: getOptionalValue(data.description),
+    description: getOptionalValue(
+      data.description
+    ),
   })
 
   await revalidateBoq(data.projectId)
@@ -501,7 +680,9 @@ export async function createBoqSectionAction(
     boqId: boq.id,
     organizationId: membership.organizationId,
     name: data.name,
-    description: getOptionalValue(data.description),
+    description: getOptionalValue(
+      data.description
+    ),
     sortOrder: boq._count.sections,
   })
 
@@ -539,7 +720,9 @@ export async function updateBoqSectionAction(
     membership.organizationId,
     {
       name: data.name,
-      description: getOptionalValue(data.description),
+      description: getOptionalValue(
+        data.description
+      ),
     }
   )
 
@@ -750,6 +933,453 @@ export async function deleteBoqItemAction(
   }
 
   await revalidateBoq(data.projectId)
+
+  return { success: true }
+}
+
+export async function createSupplierAction(
+  formData: FormData
+) {
+  const membership =
+    await getCurrentOrganizationMembership()
+
+  if (!membership) {
+    throw new Error(
+      "You must belong to an organization."
+    )
+  }
+
+  requirePermission(
+    membership,
+    "procurement:create"
+  )
+
+  const parsed = createSupplierSchema.safeParse({
+    name: formData.get("name"),
+    contact: formData.get("contact"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    address: formData.get("address"),
+    status:
+      formData.get("status") || undefined,
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier details."
+    )
+  }
+
+  const data = parsed.data
+
+  const supplier = await createSupplier({
+    organizationId: membership.organizationId,
+    name: data.name,
+    contact: getOptionalValue(data.contact),
+    email: getOptionalValue(data.email),
+    phone: getOptionalValue(data.phone),
+    address: getOptionalValue(data.address),
+    status: data.status,
+  })
+
+  revalidatePath("/projects")
+
+  return {
+    success: true,
+    supplierId: supplier.id,
+  }
+}
+
+export async function updateSupplierAction(
+  formData: FormData
+) {
+  const parsed = updateSupplierSchema.safeParse({
+    supplierId: formData.get("supplierId"),
+    name: formData.get("name"),
+    contact: formData.get("contact"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    address: formData.get("address"),
+    status:
+      formData.get("status") || undefined,
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier details."
+    )
+  }
+
+  const data = parsed.data
+
+  const { supplier } =
+    await requireSupplierAccess(
+      data.supplierId,
+      "procurement:update"
+    )
+
+  const updatedSupplier =
+    await updateSupplier(
+      supplier.id,
+      supplier.organizationId,
+      {
+        name: data.name,
+        contact: getOptionalValue(data.contact),
+        email: getOptionalValue(data.email),
+        phone: getOptionalValue(data.phone),
+        address: getOptionalValue(data.address),
+        status: data.status,
+      }
+    )
+
+  if (!updatedSupplier) {
+    throw new Error("Supplier not found.")
+  }
+
+  revalidatePath("/projects")
+
+  return { success: true }
+}
+
+export async function deleteSupplierAction(
+  formData: FormData
+) {
+  const parsed = deleteSupplierSchema.safeParse({
+    supplierId: formData.get("supplierId"),
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier."
+    )
+  }
+
+  const data = parsed.data
+
+  const { supplier } =
+    await requireSupplierAccess(
+      data.supplierId,
+      "procurement:delete"
+    )
+
+  const deletedSupplier =
+    await deleteSupplier(
+      supplier.id,
+      supplier.organizationId
+    )
+
+  if (!deletedSupplier) {
+    throw new Error("Supplier not found.")
+  }
+
+  revalidatePath("/projects")
+
+  return { success: true }
+}
+
+export async function createProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    createProcurementRequestSchema.safeParse({
+      projectId: formData.get("projectId"),
+      reference: formData.get("reference"),
+      description: formData.get("description"),
+      supplierId:
+        formData.get("supplierId") ||
+        undefined,
+      status:
+        formData.get("status") ||
+        undefined,
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { membership } =
+    await requireProcurementAccess(
+      data.projectId,
+      "procurement:create"
+    )
+
+  const request =
+    await createProcurementRequest({
+      projectId: data.projectId,
+      requestedById: membership.userId,
+      reference: data.reference,
+      description: getOptionalValue(
+        data.description
+      ),
+      supplierId: getOptionalValue(
+        data.supplierId
+      ),
+      status: data.status,
+    })
+
+  await revalidateProcurement(
+    data.projectId
+  )
+
+  return {
+    success: true,
+    requestId: request.id,
+  }
+}
+
+export async function updateProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    updateProcurementRequestSchema.safeParse({
+      requestId: formData.get("requestId"),
+      projectId: formData.get("projectId"),
+      reference: formData.get("reference"),
+      description: formData.get("description"),
+      supplierId:
+        formData.get("supplierId") ||
+        undefined,
+      status:
+        formData.get("status") ||
+        undefined,
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      data.requestId,
+      "procurement:update"
+    )
+
+  const updatedRequest =
+    await updateProcurementRequest(
+      request.id,
+      data.projectId,
+      {
+        reference: data.reference,
+        description: getOptionalValue(
+          data.description
+        ),
+        supplierId: getOptionalValue(
+          data.supplierId
+        ),
+        status: data.status,
+      }
+    )
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Procurement request not found."
+    )
+  }
+
+  await revalidateProcurement(
+    data.projectId
+  )
+
+  return { success: true }
+}
+
+export async function deleteProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    deleteProcurementRequestSchema.safeParse({
+      requestId: formData.get("requestId"),
+      projectId: formData.get("projectId"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      data.requestId,
+      "procurement:delete"
+    )
+
+  const deletedRequest =
+    await deleteProcurementRequest(
+      request.id,
+      data.projectId
+    )
+
+  if (!deletedRequest) {
+    throw new Error(
+      "Procurement request not found."
+    )
+  }
+
+  await revalidateProcurement(
+    data.projectId
+  )
+
+  return { success: true }
+}
+
+export async function createProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    createProcurementRequestItemSchema.safeParse({
+      projectId: formData.get("projectId"),
+      procurementRequestId:
+        formData.get("procurementRequestId"),
+      boqItemId: formData.get("boqItemId"),
+      quantity: formData.get("quantity"),
+      notes: formData.get("notes"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  await requireProjectProcurementRequestAccess(
+    data.projectId,
+    data.procurementRequestId,
+    "procurement:update"
+  )
+
+  const item =
+    await createProcurementRequestItem({
+      procurementRequestId:
+        data.procurementRequestId,
+      boqItemId: data.boqItemId,
+      quantity: data.quantity,
+      notes: getOptionalValue(data.notes),
+    })
+
+  if (!item) {
+    throw new Error(
+      "The procurement request or BOQ item could not be found."
+    )
+  }
+
+  await revalidateProcurement(
+    data.projectId
+  )
+
+  return {
+    success: true,
+    itemId: item.id,
+  }
+}
+
+export async function updateProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    updateProcurementRequestItemSchema.safeParse({
+      itemId: formData.get("itemId"),
+      projectId: formData.get("projectId"),
+      quantity: formData.get("quantity"),
+      notes: formData.get("notes"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  await requireProcurementAccess(
+    data.projectId,
+    "procurement:update"
+  )
+
+  const item =
+    await updateProcurementRequestItem(
+      data.itemId,
+      data.projectId,
+      {
+        quantity: data.quantity,
+        notes: getOptionalValue(data.notes),
+      }
+    )
+
+  if (!item) {
+    throw new Error(
+      "Procurement request item not found."
+    )
+  }
+
+  await revalidateProcurement(
+    data.projectId
+  )
+
+  return { success: true }
+}
+
+export async function deleteProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    deleteProcurementRequestItemSchema.safeParse({
+      itemId: formData.get("itemId"),
+      projectId: formData.get("projectId"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  await requireProcurementAccess(
+    data.projectId,
+    "procurement:delete"
+  )
+
+  const item =
+    await deleteProcurementRequestItem(
+      data.itemId,
+      data.projectId
+    )
+
+  if (!item) {
+    throw new Error(
+      "Procurement request item not found."
+    )
+  }
+
+  await revalidateProcurement(
+    data.projectId
+  )
 
   return { success: true }
 }

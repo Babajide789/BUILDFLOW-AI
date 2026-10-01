@@ -50,3 +50,9 @@ export type {
   AuthenticationResult,
   AuthenticationState,
 } from "./auth-state"
+
+export {
+  requireProcurementAccess,
+  requireProjectProcurementRequestAccess,
+  requireSupplierAccess,
+} from "@/lib/auth/procurement-access"

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ClipboardList,
   MapPin,
+  Truck,
   UserRound,
 } from "lucide-react"
 
@@ -83,7 +84,11 @@ export function ProjectDetailHeader({
               {project.name}
             </h1>
 
-            <Badge variant={getStatusVariant(project.status)}>
+            <Badge
+              variant={getStatusVariant(
+                project.status
+              )}
+            >
               {getStatusLabel(project.status)}
             </Badge>
           </div>
@@ -94,7 +99,8 @@ export function ProjectDetailHeader({
                 className="size-4"
                 aria-hidden="true"
               />
-              {project.client || "No client specified"}
+              {project.client ||
+                "No client specified"}
             </span>
 
             <span className="inline-flex items-center gap-1.5">
@@ -102,21 +108,20 @@ export function ProjectDetailHeader({
                 className="size-4"
                 aria-hidden="true"
               />
-              {project.location || "No location specified"}
+              {project.location ||
+                "No location specified"}
             </span>
           </div>
         </div>
 
         <div className="flex flex-col items-start gap-3 lg:items-end">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <CalendarDays
-                className="size-4"
-                aria-hidden="true"
-              />
-              {formatDate(project.startDate)} –{" "}
-              {formatDate(project.endDate)}
-            </span>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            <CalendarDays
+              className="size-4"
+              aria-hidden="true"
+            />
+            {formatDate(project.startDate)} –{" "}
+            {formatDate(project.endDate)}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -129,6 +134,17 @@ export function ProjectDetailHeader({
                 aria-hidden="true"
               />
               View BOQ
+            </Link>
+
+            <Link
+              href={`/projects/${project.id}/procurement`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Truck
+                className="size-4"
+                aria-hidden="true"
+              />
+              Procurement
             </Link>
 
             {showEditAction ? (
