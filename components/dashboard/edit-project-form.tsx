@@ -180,41 +180,6 @@ export function EditProjectForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="budget">
-                Budget
-              </Label>
-
-              <Input
-                id="budget"
-                name="budget"
-                type="number"
-                min="0"
-                step="0.01"
-                defaultValue={project.budget}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="progress">
-                Progress (%)
-              </Label>
-
-              <Input
-                id="progress"
-                name="progress"
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                defaultValue={project.progress}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="startDate">
                 Start date
               </Label>
@@ -226,19 +191,30 @@ export function EditProjectForm({
                 defaultValue={project.startDate}
               />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="endDate">
-                End date
-              </Label>
+          <div className="space-y-2">
+            <Label htmlFor="endDate">
+              End date
+            </Label>
 
-              <Input
-                id="endDate"
-                name="endDate"
-                type="date"
-                defaultValue={project.endDate}
-              />
-            </div>
+            <Input
+              id="endDate"
+              name="endDate"
+              type="date"
+              defaultValue={project.endDate}
+            />
+          </div>
+
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <p className="text-sm font-medium">
+              Budget and progress are system-managed
+            </p>
+
+            <p className="mt-1 text-sm text-muted-foreground">
+              Budget is derived from the project BOQ and progress
+              will be managed through project progress tracking.
+            </p>
           </div>
 
           {error ? (

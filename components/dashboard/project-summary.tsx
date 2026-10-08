@@ -22,11 +22,27 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(value: string) {
+  if (!value) {
+    return "Not set"
+  }
+
   return new Intl.DateTimeFormat("en-NG", {
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(new Date(value))
+}
+
+function getBudgetLabel(budget: number) {
+  return budget > 0
+    ? formatCurrency(budget)
+    : "Not established"
+}
+
+function getProgressLabel(progress: number) {
+  return progress > 0
+    ? `${progress}%`
+    : "Not started"
 }
 
 export function ProjectSummary({
@@ -43,7 +59,7 @@ export function ProjectSummary({
               </p>
 
               <p className="text-2xl font-semibold tracking-tight">
-                {project.progress}%
+                {getProgressLabel(project.progress)}
               </p>
             </div>
 
@@ -70,7 +86,7 @@ export function ProjectSummary({
               </p>
 
               <p className="text-2xl font-semibold tracking-tight">
-                {formatCurrency(project.budget)}
+                {getBudgetLabel(project.budget)}
               </p>
             </div>
 
@@ -83,7 +99,7 @@ export function ProjectSummary({
           </div>
 
           <p className="mt-3 text-xs text-muted-foreground">
-            Current project budget
+            Derived from current BOQ
           </p>
         </CardContent>
       </Card>

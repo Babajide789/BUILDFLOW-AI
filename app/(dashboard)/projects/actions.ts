@@ -5,6 +5,12 @@ import { redirect } from "next/navigation"
 import { z } from "zod"
 
 import { getCurrentOrganizationMembership } from "@/lib/auth"
+import { requireBoqAccess } from "@/lib/auth/boq-access"
+import {
+  requireProcurementAccess,
+  requireProjectProcurementRequestAccess,
+  requireSupplierAccess,
+} from "@/lib/auth/procurement-access"
 import { requirePermission } from "@/lib/auth/guards"
 import {
   createBoq,
@@ -15,13 +21,29 @@ import {
   updateBoqItem,
   updateBoqSection,
 } from "@/lib/data/db/boq"
-import { requireBoqAccess } from "@/lib/auth/boq-access"
+import {
+  createProcurementRequest,
+  createProcurementRequestItem,
+  createSupplier,
+  deleteProcurementRequest,
+  deleteProcurementRequestItem,
+  deleteSupplier,
+  updateProcurementRequest,
+  updateProcurementRequestItem,
+  updateSupplier,
+} from "@/lib/data/db/procurement"
 import {
   createProject,
   deleteProject,
   updateProject,
 } from "@/lib/data/db/projects"
 import { prisma } from "@/lib/db/prisma"
+import {
+  canEditProcurementRequest,
+  canEditProcurementRequestItems,
+  getNextProcurementStatus,
+} from "@/lib/data/procurement-workflow"
+import type { ProcurementRequestStatus as DomainProcurementRequestStatus } from "@/lib/types/procurement"
 
 const projectStatusSchema = z.enum([
   "planning",
@@ -50,55 +72,28 @@ const boqItemStatusSchema = z.enum([
   "CANCELLED",
 ])
 
+const supplierStatusSchema = z.enum([
+  "active",
+  "inactive",
+])
+
+const procurementRequestStatusSchema = z.enum([
+  "DRAFT",
+  "SUBMITTED",
+  "APPROVED",
+  "REJECTED",
+  "CANCELLED",
+])
+
 const createProjectSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Project name must be at least 2 characters.")
-    .max(120, "Project name is too long."),
-  slug: z
-    .string()
-    .trim()
-    .min(2, "Project slug must be at least 2 characters.")
-    .max(120, "Project slug is too long.")
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      "Project slug can only contain lowercase letters, numbers, and hyphens."
-    ),
-  description: z
-    .string()
-    .trim()
-    .max(1000, "Description is too long.")
-    .optional(),
-  client: z
-    .string()
-    .trim()
-    .max(160, "Client name is too long.")
-    .optional(),
-  location: z
-    .string()
-    .trim()
-    .max(160, "Location is too long.")
-    .optional(),
-  budget: z
-    .string()
-    .trim()
-    .min(1, "Budget is required.")
-    .refine((value) => {
-      const amount = Number(value)
-      return Number.isFinite(amount) && amount >= 0
-    }, "Enter a valid budget."),
-  progress: z
-    .string()
-    .trim()
-    .refine((value) => {
-      const amount = Number(value)
-      return (
-        Number.isInteger(amount) &&
-        amount >= 0 &&
-        amount <= 100
-      )
-    }, "Progress must be a whole number between 0 and 100."),
+  name: z.string().trim().min(2, "Project name must be at least 2 characters.").max(120, "Project name is too long."),
+  slug: z.string().trim().min(2, "Project slug must be at least 2 characters.").max(120, "Project slug is too long.").regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    "Project slug can only contain lowercase letters, numbers, and hyphens."
+  ),
+  description: z.string().trim().max(1000, "Description is too long.").optional(),
+  client: z.string().trim().max(160, "Client name is too long.").optional(),
+  location: z.string().trim().max(160, "Location is too long.").optional(),
   startDate: z.string().trim().optional(),
   endDate: z.string().trim().optional(),
 })
@@ -198,6 +193,124 @@ const deleteBoqItemSchema = z.object({
   projectId: z.string().trim().min(1),
 })
 
+const createSupplierSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Supplier name must be at least 2 characters.")
+    .max(160, "Supplier name is too long."),
+  contact: z
+    .string()
+    .trim()
+    .max(160, "Contact name is too long.")
+    .optional(),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid supplier email.")
+    .max(160, "Supplier email is too long.")
+    .optional()
+    .or(z.literal("")),
+  phone: z
+    .string()
+    .trim()
+    .max(50, "Supplier phone number is too long.")
+    .optional(),
+  address: z
+    .string()
+    .trim()
+    .max(500, "Supplier address is too long.")
+    .optional(),
+  status: supplierStatusSchema.optional(),
+})
+
+const updateSupplierSchema = createSupplierSchema.extend({
+  supplierId: z.string().trim().min(1),
+})
+
+const deleteSupplierSchema = z.object({
+  supplierId: z.string().trim().min(1),
+})
+
+const createProcurementRequestSchema = z.object({
+  projectId: z.string().trim().min(1),
+  reference: z
+    .string()
+    .trim()
+    .min(2, "Request reference is required.")
+    .max(100, "Request reference is too long."),
+  description: z
+    .string()
+    .trim()
+    .max(1000, "Request description is too long.")
+    .optional(),
+  supplierId: z
+    .string()
+    .trim()
+    .optional(),
+  status: procurementRequestStatusSchema.optional(),
+})
+
+const updateProcurementRequestSchema =
+  createProcurementRequestSchema.extend({
+    requestId: z.string().trim().min(1),
+  })
+
+const deleteProcurementRequestSchema = z.object({
+  requestId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+})
+
+const createProcurementRequestItemSchema = z.object({
+  projectId: z.string().trim().min(1),
+  procurementRequestId: z.string().trim().min(1),
+  boqItemId: z.string().trim().min(1),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Quantity is required.")
+    .refine((value) => {
+      const amount = Number(value)
+
+      return (
+        Number.isFinite(amount) &&
+        amount > 0
+      )
+    }, "Enter a valid quantity greater than zero."),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Item notes are too long.")
+    .optional(),
+})
+
+const updateProcurementRequestItemSchema = z.object({
+  itemId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Quantity is required.")
+    .refine((value) => {
+      const amount = Number(value)
+
+      return (
+        Number.isFinite(amount) &&
+        amount > 0
+      )
+    }, "Enter a valid quantity greater than zero."),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Item notes are too long.")
+    .optional(),
+})
+
+const deleteProcurementRequestItemSchema = z.object({
+  itemId: z.string().trim().min(1),
+  projectId: z.string().trim().min(1),
+})
+
 const statusMap = {
   planning: "PLANNING",
   active: "ACTIVE",
@@ -208,8 +321,14 @@ const statusMap = {
 
 function getOptionalValue(value: string | undefined) {
   const trimmed = value?.trim()
+
   return trimmed ? trimmed : null
 }
+
+const supplierStatusMap = {
+  active: "ACTIVE",
+  inactive: "INACTIVE",
+} as const
 
 function getOptionalDate(value: string | undefined) {
   const trimmed = value?.trim()
@@ -223,9 +342,91 @@ function getOptionalDate(value: string | undefined) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
+async function syncProjectBudgetFromBoq(projectId: string) {
+  const items = await prisma.boqItem.findMany({
+    where: {
+      section: {
+        boq: {
+          projectId,
+        },
+      },
+    },
+    select: {
+      quantity: true,
+      rate: true,
+    },
+  })
+
+  const total = items.reduce(
+    (sum, item) => sum + Number(item.quantity) * Number(item.rate),
+    0
+  )
+
+  await prisma.project.updateMany({
+    where: { id: projectId },
+    data: { budget: total },
+  })
+
+  revalidatePath("/projects")
+}
+
+async function syncProjectProgressFromBoq(projectId: string) {
+  const items = await prisma.boqItem.findMany({
+    where: {
+      section: {
+        boq: {
+          projectId,
+        },
+      },
+    },
+    select: {
+      quantity: true,
+      rate: true,
+      status: true,
+    },
+  })
+
+  const totalValue = items.reduce(
+    (sum, item) =>
+      sum + Number(item.quantity) * Number(item.rate),
+    0
+  )
+
+  const completedValue = items.reduce(
+    (sum, item) =>
+      item.status === "COMPLETED"
+        ? sum + Number(item.quantity) * Number(item.rate)
+        : sum,
+    0
+  )
+
+  const progress =
+    totalValue > 0
+      ? Math.round((completedValue / totalValue) * 100)
+      : 0
+
+  await prisma.project.updateMany({
+    where: { id: projectId },
+    data: { progress },
+  })
+
+  revalidatePath("/projects")
+}
+
 async function revalidateBoq(projectId: string) {
   revalidatePath(`/projects/${projectId}/boq`)
   revalidatePath(`/projects/${projectId}`)
+  revalidatePath(`/projects/${projectId}/edit`)
+  revalidatePath("/projects")
+}
+
+async function revalidateProcurement(
+  projectId: string
+) {
+  revalidatePath(`/projects/${projectId}`)
+  revalidatePath(
+    `/projects/${projectId}/procurement`
+  )
 }
 
 export async function createProjectAction(
@@ -240,7 +441,10 @@ export async function createProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:create")
+  requirePermission(
+    membership,
+    "projects:create"
+  )
 
   const parsed = createProjectSchema.safeParse({
     name: formData.get("name"),
@@ -248,8 +452,6 @@ export async function createProjectAction(
     description: formData.get("description"),
     client: formData.get("client"),
     location: formData.get("location"),
-    budget: formData.get("budget"),
-    progress: formData.get("progress"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
   })
@@ -270,11 +472,13 @@ export async function createProjectAction(
       organizationId: membership.organizationId,
       name: data.name,
       slug: data.slug,
-      description: getOptionalValue(data.description),
+      description: getOptionalValue(
+        data.description
+      ),
       client: getOptionalValue(data.client),
       location: getOptionalValue(data.location),
-      budget: data.budget,
-      progress: Number(data.progress),
+      budget: 0,
+      progress: 0,
       startDate: getOptionalDate(data.startDate),
       endDate: getOptionalDate(data.endDate),
     })
@@ -309,7 +513,10 @@ export async function updateProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:update")
+  requirePermission(
+    membership,
+    "projects:update"
+  )
 
   const parsed = updateProjectSchema.safeParse({
     name: formData.get("name"),
@@ -317,8 +524,6 @@ export async function updateProjectAction(
     description: formData.get("description"),
     client: formData.get("client"),
     location: formData.get("location"),
-    budget: formData.get("budget"),
-    progress: formData.get("progress"),
     status: formData.get("status"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
@@ -342,13 +547,15 @@ export async function updateProjectAction(
       {
         name: data.name,
         slug: data.slug,
-        description: getOptionalValue(data.description),
+        description: getOptionalValue(
+          data.description
+        ),
         client: getOptionalValue(data.client),
         location: getOptionalValue(data.location),
         status: statusMap[data.status],
-        budget: data.budget,
-        progress: Number(data.progress),
-        startDate: getOptionalDate(data.startDate),
+        startDate: getOptionalDate(
+          data.startDate
+        ),
         endDate: getOptionalDate(data.endDate),
       }
     )
@@ -373,7 +580,10 @@ export async function updateProjectAction(
 
   revalidatePath("/projects")
   revalidatePath(`/projects/${project.id}`)
-  revalidatePath(`/projects/${project.id}/edit`)
+  revalidatePath(
+    `/projects/${project.id}/edit`
+  )
+
   redirect(`/projects/${project.id}`)
 }
 
@@ -389,7 +599,10 @@ export async function deleteProjectAction(
     )
   }
 
-  requirePermission(membership, "projects:delete")
+  requirePermission(
+    membership,
+    "projects:delete"
+  )
 
   const project = await deleteProject(
     projectId,
@@ -402,6 +615,7 @@ export async function deleteProjectAction(
 
   revalidatePath("/projects")
   revalidatePath(`/projects/${projectId}`)
+
   redirect("/projects")
 }
 
@@ -446,7 +660,9 @@ export async function createBoqAction(
   await createBoq({
     projectId: data.projectId,
     name: data.name,
-    description: getOptionalValue(data.description),
+    description: getOptionalValue(
+      data.description
+    ),
   })
 
   await revalidateBoq(data.projectId)
@@ -501,7 +717,9 @@ export async function createBoqSectionAction(
     boqId: boq.id,
     organizationId: membership.organizationId,
     name: data.name,
-    description: getOptionalValue(data.description),
+    description: getOptionalValue(
+      data.description
+    ),
     sortOrder: boq._count.sections,
   })
 
@@ -539,7 +757,9 @@ export async function updateBoqSectionAction(
     membership.organizationId,
     {
       name: data.name,
-      description: getOptionalValue(data.description),
+      description: getOptionalValue(
+        data.description
+      ),
     }
   )
 
@@ -583,6 +803,8 @@ export async function deleteBoqSectionAction(
     throw new Error("Section not found.")
   }
 
+  await syncProjectBudgetFromBoq(data.projectId)
+  await syncProjectProgressFromBoq(data.projectId)
   await revalidateBoq(data.projectId)
 
   return { success: true }
@@ -662,6 +884,8 @@ export async function createBoqItemAction(
     throw error
   }
 
+  await syncProjectBudgetFromBoq(data.projectId)
+  await syncProjectProgressFromBoq(data.projectId)
   await revalidateBoq(data.projectId)
 
   return { success: true }
@@ -713,6 +937,8 @@ export async function updateBoqItemAction(
     throw new Error("BOQ item not found.")
   }
 
+  await syncProjectBudgetFromBoq(data.projectId)
+  await syncProjectProgressFromBoq(data.projectId)
   await revalidateBoq(data.projectId)
 
   return { success: true }
@@ -749,7 +975,706 @@ export async function deleteBoqItemAction(
     throw new Error("BOQ item not found.")
   }
 
+  await syncProjectBudgetFromBoq(data.projectId)
+  await syncProjectProgressFromBoq(data.projectId)
   await revalidateBoq(data.projectId)
+
+  return { success: true }
+}
+
+export async function createSupplierAction(
+  formData: FormData
+) {
+  const membership =
+    await getCurrentOrganizationMembership()
+
+  if (!membership) {
+    throw new Error(
+      "You must belong to an organization."
+    )
+  }
+
+  requirePermission(
+    membership,
+    "procurement:create"
+  )
+
+  const parsed = createSupplierSchema.safeParse({
+    name: formData.get("name"),
+    contact: formData.get("contact"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    address: formData.get("address"),
+    status:
+      formData.get("status") || undefined,
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier details."
+    )
+  }
+
+  const data = parsed.data
+
+  const supplier = await createSupplier({
+    organizationId: membership.organizationId,
+    name: data.name,
+    contact: getOptionalValue(data.contact),
+    email: getOptionalValue(data.email),
+    phone: getOptionalValue(data.phone),
+    address: getOptionalValue(data.address),
+    status: data.status
+      ? supplierStatusMap[data.status]
+      : undefined,
+  })
+
+  revalidatePath("/projects")
+
+  return {
+    success: true,
+    supplierId: supplier.id,
+  }
+}
+
+export async function updateSupplierAction(
+  formData: FormData
+) {
+  const parsed = updateSupplierSchema.safeParse({
+    supplierId: formData.get("supplierId"),
+    name: formData.get("name"),
+    contact: formData.get("contact"),
+    email: formData.get("email"),
+    phone: formData.get("phone"),
+    address: formData.get("address"),
+    status:
+      formData.get("status") || undefined,
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier details."
+    )
+  }
+
+  const data = parsed.data
+
+  const { supplier } =
+    await requireSupplierAccess(
+      data.supplierId,
+      "procurement:update"
+    )
+
+  const updatedSupplier =
+    await updateSupplier(
+      supplier.id,
+      supplier.organizationId,
+      {
+        name: data.name,
+        contact: getOptionalValue(data.contact),
+        email: getOptionalValue(data.email),
+        phone: getOptionalValue(data.phone),
+        address: getOptionalValue(data.address),
+        status: data.status ? supplierStatusMap[data.status.toLowerCase() as keyof typeof supplierStatusMap] : undefined,
+      }
+    )
+
+  if (!updatedSupplier) {
+    throw new Error("Supplier not found.")
+  }
+
+  revalidatePath("/projects")
+
+  return { success: true }
+}
+
+export async function deleteSupplierAction(
+  formData: FormData
+) {
+  const parsed = deleteSupplierSchema.safeParse({
+    supplierId: formData.get("supplierId"),
+  })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid supplier."
+    )
+  }
+
+  const data = parsed.data
+
+  const { supplier } =
+    await requireSupplierAccess(
+      data.supplierId,
+      "procurement:delete"
+    )
+
+  const deletedSupplier =
+    await deleteSupplier(
+      supplier.id,
+      supplier.organizationId
+    )
+
+  if (!deletedSupplier) {
+    throw new Error("Supplier not found.")
+  }
+
+  revalidatePath("/projects")
+
+  return { success: true }
+}
+
+function toDomainProcurementStatus(
+  status: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "CANCELLED"
+): DomainProcurementRequestStatus {
+  const map = {
+    DRAFT: "draft",
+    SUBMITTED: "submitted",
+    APPROVED: "approved",
+    REJECTED: "rejected",
+    CANCELLED: "cancelled",
+  } as const
+
+  return map[status]
+}
+
+function toPrismaProcurementStatus(
+  status: DomainProcurementRequestStatus
+) {
+  const map = {
+    draft: "DRAFT",
+    submitted: "SUBMITTED",
+    approved: "APPROVED",
+    rejected: "REJECTED",
+    cancelled: "CANCELLED",
+  } as const
+
+  return map[status]
+}
+
+async function validateProcurementSupplier(
+  supplierId: string | null | undefined,
+  permission: "procurement:create" | "procurement:update"
+) {
+  if (!supplierId) {
+    return
+  }
+
+  await requireSupplierAccess(supplierId, permission)
+}
+
+export async function createProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    createProcurementRequestSchema.safeParse({
+      projectId: formData.get("projectId"),
+      reference: formData.get("reference"),
+      description: formData.get("description"),
+      supplierId:
+        formData.get("supplierId") ||
+        undefined,
+      status:
+        formData.get("status") ||
+        undefined,
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { membership } =
+    await requireProcurementAccess(
+      data.projectId,
+      "procurement:create"
+    )
+
+  if (data.status && data.status !== "DRAFT") {
+    throw new Error(
+      "New procurement requests must start in draft status."
+    )
+  }
+
+  await validateProcurementSupplier(
+    getOptionalValue(data.supplierId),
+    "procurement:create"
+  )
+
+  let request
+
+  try {
+    request =
+      await createProcurementRequest({
+        projectId: data.projectId,
+        requestedById: membership.userId,
+        reference: data.reference,
+        description: getOptionalValue(
+          data.description
+        ),
+        supplierId: getOptionalValue(
+          data.supplierId
+        ),
+        status: "DRAFT",
+      })
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new Error(
+        "A procurement request with this reference already exists in this project."
+      )
+    }
+
+    throw error
+  }
+
+  const boqItemIds = formData
+    .getAll("boqItemId")
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+
+  try {
+    for (const boqItemId of boqItemIds) {
+      const quantity = String(
+        formData.get(`quantity_${boqItemId}`) ?? ""
+      ).trim()
+      const notes = String(
+        formData.get(`notes_${boqItemId}`) ?? ""
+      ).trim()
+
+      const item = await createProcurementRequestItem({
+        procurementRequestId: request.id,
+        boqItemId,
+        quantity,
+        notes: getOptionalValue(notes),
+      })
+
+      if (!item) {
+        throw new Error(
+          "A selected BOQ item could not be added to the procurement request."
+        )
+      }
+    }
+  } catch (error) {
+    await deleteProcurementRequest(request.id, data.projectId)
+
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new Error(
+        "One of the selected BOQ items is already included in the procurement request."
+      )
+    }
+
+    throw error
+  }
+
+  await revalidateProcurement(data.projectId)
+
+  return {
+    success: true,
+    requestId: request.id,
+  }
+}
+
+export async function updateProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    updateProcurementRequestSchema.safeParse({
+      requestId: formData.get("requestId"),
+      projectId: formData.get("projectId"),
+      reference: formData.get("reference"),
+      description: formData.get("description"),
+      supplierId:
+        formData.get("supplierId") ||
+        undefined,
+      status:
+        formData.get("status") ||
+        undefined,
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { membership, request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      data.requestId,
+      "procurement:update"
+    )
+
+  const currentStatus = toDomainProcurementStatus(
+    request.status
+  )
+  const targetStatus = data.status
+    ? toDomainProcurementStatus(data.status)
+    : currentStatus
+
+  if (targetStatus === currentStatus) {
+    if (!canEditProcurementRequest(currentStatus)) {
+      throw new Error(
+        "This procurement request is locked and cannot be edited in its current status."
+      )
+    }
+  } else {
+    const action =
+      targetStatus === "submitted" &&
+      currentStatus === "draft"
+        ? "submit"
+        : targetStatus === "approved" &&
+            currentStatus === "submitted"
+          ? "approve"
+          : targetStatus === "rejected" &&
+              currentStatus === "submitted"
+            ? "reject"
+            : targetStatus === "draft" &&
+                currentStatus === "rejected"
+              ? "return_to_draft"
+              : targetStatus === "cancelled" &&
+                  (currentStatus === "submitted" ||
+                    currentStatus === "approved")
+                ? "cancel"
+                : null
+
+    if (!action) {
+      throw new Error(
+        `Invalid procurement workflow transition: ${currentStatus} → ${targetStatus}.`
+      )
+    }
+
+    const nextStatus = getNextProcurementStatus(
+      currentStatus,
+      action,
+      membership.role
+    )
+
+    if (!nextStatus) {
+      throw new Error(
+        `You are not authorized to transition this request from ${currentStatus} to ${targetStatus}.`
+      )
+    }
+  }
+
+  const supplierId = formData.has("supplierId")
+    ? getOptionalValue(data.supplierId)
+    : request.supplierId
+
+  await validateProcurementSupplier(
+    supplierId,
+    "procurement:update"
+  )
+
+  const updatedRequest =
+    await updateProcurementRequest(
+      request.id,
+      data.projectId,
+      {
+        reference: data.reference,
+        description: getOptionalValue(
+          data.description
+        ),
+        supplierId,
+        status: toPrismaProcurementStatus(
+          targetStatus
+        ),
+      }
+    )
+
+  if (!updatedRequest) {
+    throw new Error(
+      "Procurement request not found."
+    )
+  }
+
+  await revalidateProcurement(data.projectId)
+
+  return { success: true }
+}
+
+export async function deleteProcurementRequestAction(
+  formData: FormData
+) {
+  const parsed =
+    deleteProcurementRequestSchema.safeParse({
+      requestId: formData.get("requestId"),
+      projectId: formData.get("projectId"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request."
+    )
+  }
+
+  const data = parsed.data
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      data.requestId,
+      "procurement:delete"
+    )
+
+  const currentStatus = toDomainProcurementStatus(
+    request.status
+  )
+
+  if (!canEditProcurementRequest(currentStatus)) {
+    throw new Error(
+      "Only draft or rejected procurement requests can be deleted."
+    )
+  }
+
+  const deletedRequest =
+    await deleteProcurementRequest(
+      request.id,
+      data.projectId
+    )
+
+  if (!deletedRequest) {
+    throw new Error(
+      "Procurement request not found."
+    )
+  }
+
+  await revalidateProcurement(data.projectId)
+
+  return { success: true }
+}
+
+export async function createProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    createProcurementRequestItemSchema.safeParse({
+      projectId: formData.get("projectId"),
+      procurementRequestId:
+        formData.get("procurementRequestId"),
+      boqItemId: formData.get("boqItemId"),
+      quantity: formData.get("quantity"),
+      notes: formData.get("notes"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      data.procurementRequestId,
+      "procurement:update"
+    )
+
+  const currentStatus = toDomainProcurementStatus(
+    request.status
+  )
+
+  if (!canEditProcurementRequestItems(currentStatus)) {
+    throw new Error(
+      "Procurement request items are locked in the current request status."
+    )
+  }
+
+  try {
+    const item =
+      await createProcurementRequestItem({
+        procurementRequestId:
+          data.procurementRequestId,
+        boqItemId: data.boqItemId,
+        quantity: data.quantity,
+        notes: getOptionalValue(data.notes),
+      })
+
+    if (!item) {
+      throw new Error(
+        "The procurement request or BOQ item could not be found."
+      )
+    }
+
+    await revalidateProcurement(data.projectId)
+
+    return {
+      success: true,
+      itemId: item.id,
+    }
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new Error(
+        "This BOQ item is already included in the procurement request."
+      )
+    }
+
+    throw error
+  }
+}
+
+export async function updateProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    updateProcurementRequestItemSchema.safeParse({
+      itemId: formData.get("itemId"),
+      projectId: formData.get("projectId"),
+      quantity: formData.get("quantity"),
+      notes: formData.get("notes"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      await getProcurementRequestIdForItem(data.itemId, data.projectId),
+      "procurement:update"
+    )
+
+  const currentStatus = toDomainProcurementStatus(
+    request.status
+  )
+
+  if (!canEditProcurementRequestItems(currentStatus)) {
+    throw new Error(
+      "Procurement request items are locked in the current request status."
+    )
+  }
+
+  const item =
+    await updateProcurementRequestItem(
+      data.itemId,
+      data.projectId,
+      {
+        quantity: data.quantity,
+        notes: getOptionalValue(data.notes),
+      }
+    )
+
+  if (!item) {
+    throw new Error(
+      "Procurement request item not found."
+    )
+  }
+
+  await revalidateProcurement(data.projectId)
+
+  return { success: true }
+}
+
+async function getProcurementRequestIdForItem(
+  itemId: string,
+  projectId: string
+) {
+  const item = await prisma.procurementRequestItem.findFirst({
+    where: {
+      id: itemId,
+      procurementRequest: {
+        projectId,
+      },
+    },
+    select: {
+      procurementRequestId: true,
+    },
+  })
+
+  if (!item) {
+    throw new Error("Procurement request item not found.")
+  }
+
+  return item.procurementRequestId
+}
+
+export async function deleteProcurementRequestItemAction(
+  formData: FormData
+) {
+  const parsed =
+    deleteProcurementRequestItemSchema.safeParse({
+      itemId: formData.get("itemId"),
+      projectId: formData.get("projectId"),
+    })
+
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message ??
+        "Invalid procurement request item."
+    )
+  }
+
+  const data = parsed.data
+
+  const requestId = await getProcurementRequestIdForItem(
+    data.itemId,
+    data.projectId
+  )
+
+  const { request } =
+    await requireProjectProcurementRequestAccess(
+      data.projectId,
+      requestId,
+      "procurement:update"
+    )
+
+  const currentStatus = toDomainProcurementStatus(
+    request.status
+  )
+
+  if (!canEditProcurementRequestItems(currentStatus)) {
+    throw new Error(
+      "Procurement request items are locked in the current request status."
+    )
+  }
+
+  const item =
+    await deleteProcurementRequestItem(
+      data.itemId,
+      data.projectId
+    )
+
+  if (!item) {
+    throw new Error(
+      "Procurement request item not found."
+    )
+  }
+
+  await revalidateProcurement(data.projectId)
 
   return { success: true }
 }

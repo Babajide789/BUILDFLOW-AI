@@ -183,6 +183,207 @@ async function seedProjectBoq(projectId: string) {
   return boq
 }
 
+async function seedProcurement(
+  organizationId: string,
+  projectId: string,
+  requestedById: string,
+  boqId: string
+) {
+  const suppliers = {
+    primeBuild: await prisma.supplier.upsert({
+      where: {
+        organizationId_name: {
+          organizationId,
+          name: "PrimeBuild Materials",
+        },
+      },
+      update: {
+        contact: "Chinedu Okafor",
+        email: "procurement@primebuild.example.com",
+        phone: "+234 801 234 5678",
+        address: "Apapa, Lagos",
+        status: "ACTIVE",
+      },
+      create: {
+        organizationId,
+        name: "PrimeBuild Materials",
+        contact: "Chinedu Okafor",
+        email: "procurement@primebuild.example.com",
+        phone: "+234 801 234 5678",
+        address: "Apapa, Lagos",
+        status: "ACTIVE",
+      },
+    }),
+
+    lagosConstruction: await prisma.supplier.upsert({
+      where: {
+        organizationId_name: {
+          organizationId,
+          name: "Lagos Construction Supply",
+        },
+      },
+      update: {
+        contact: "Amina Bello",
+        email: "sales@lagosconstruction.example.com",
+        phone: "+234 802 345 6789",
+        address: "Ilupeju, Lagos",
+        status: "ACTIVE",
+      },
+      create: {
+        organizationId,
+        name: "Lagos Construction Supply",
+        contact: "Amina Bello",
+        email: "sales@lagosconstruction.example.com",
+        phone: "+234 802 345 6789",
+        address: "Ilupeju, Lagos",
+        status: "ACTIVE",
+      },
+    }),
+  }
+
+  async function getBoqItem(itemCode: string) {
+    const item = await prisma.boqItem.findFirst({
+      where: {
+        itemCode,
+        section: {
+          boqId,
+        },
+      },
+    })
+
+    if (!item) {
+      throw new Error(
+        `BOQ item ${itemCode} was not found for the seeded BOQ.`
+      )
+    }
+
+    return item
+  }
+
+  const excavationItem = await getBoqItem("SUB-001")
+  const foundationItem = await getBoqItem("SUB-002")
+  const blockworkItem = await getBoqItem("SUP-002")
+
+  const pr001 = await prisma.procurementRequest.upsert({
+    where: {
+      projectId_reference: {
+        projectId,
+        reference: "PR-001",
+      },
+    },
+    update: {
+      supplierId: suppliers.primeBuild.id,
+      requestedBy: requestedById,
+      description:
+        "Procurement request for foundation excavation and reinforced concrete foundation works.",
+      status: "SUBMITTED",
+    },
+    create: {
+      projectId,
+      supplierId: suppliers.primeBuild.id,
+      requestedBy: requestedById,
+      reference: "PR-001",
+      description:
+        "Procurement request for foundation excavation and reinforced concrete foundation works.",
+      status: "SUBMITTED",
+    },
+  })
+
+  await prisma.procurementRequestItem.upsert({
+    where: {
+      procurementRequestId_boqItemId: {
+        procurementRequestId: pr001.id,
+        boqItemId: excavationItem.id,
+      },
+    },
+    update: {
+      quantity: excavationItem.quantity,
+      notes:
+        "Coordinate excavation sequence with site team before delivery and mobilization.",
+    },
+    create: {
+      procurementRequestId: pr001.id,
+      boqItemId: excavationItem.id,
+      quantity: excavationItem.quantity,
+      notes:
+        "Coordinate excavation sequence with site team before delivery and mobilization.",
+    },
+  })
+
+  await prisma.procurementRequestItem.upsert({
+    where: {
+      procurementRequestId_boqItemId: {
+        procurementRequestId: pr001.id,
+        boqItemId: foundationItem.id,
+      },
+    },
+    update: {
+      quantity: foundationItem.quantity,
+      notes:
+        "Confirm concrete specification and planned foundation pour schedule.",
+    },
+    create: {
+      procurementRequestId: pr001.id,
+      boqItemId: foundationItem.id,
+      quantity: foundationItem.quantity,
+      notes:
+        "Confirm concrete specification and planned foundation pour schedule.",
+    },
+  })
+
+  const pr002 = await prisma.procurementRequest.upsert({
+    where: {
+      projectId_reference: {
+        projectId,
+        reference: "PR-002",
+      },
+    },
+    update: {
+      supplierId: suppliers.lagosConstruction.id,
+      requestedBy: requestedById,
+      description:
+        "Procurement request for blockwork materials for the superstructure.",
+      status: "APPROVED",
+    },
+    create: {
+      projectId,
+      supplierId: suppliers.lagosConstruction.id,
+      requestedBy: requestedById,
+      reference: "PR-002",
+      description:
+        "Procurement request for blockwork materials for the superstructure.",
+      status: "APPROVED",
+    },
+  })
+
+  await prisma.procurementRequestItem.upsert({
+    where: {
+      procurementRequestId_boqItemId: {
+        procurementRequestId: pr002.id,
+        boqItemId: blockworkItem.id,
+      },
+    },
+    update: {
+      quantity: blockworkItem.quantity,
+      notes:
+        "Confirm block specification, delivery batches and storage requirements.",
+    },
+    create: {
+      procurementRequestId: pr002.id,
+      boqItemId: blockworkItem.id,
+      quantity: blockworkItem.quantity,
+      notes:
+        "Confirm block specification, delivery batches and storage requirements.",
+    },
+  })
+
+  return {
+    suppliersSeeded: 2,
+    requestsSeeded: 2,
+    requestItemsSeeded: 3,
+  }
+}
+
 async function main() {
   const user = await prisma.user.findFirst({
     orderBy: {
@@ -342,6 +543,13 @@ async function main() {
     victoriaIslandResidence.id
   )
 
+  const procurement = await seedProcurement(
+    organization.id,
+    victoriaIslandResidence.id,
+    user.id,
+    boq.id
+  )
+
   console.log(
     "BuildFlow development bootstrap complete."
   )
@@ -355,6 +563,7 @@ async function main() {
     projectsSeeded: demoProjects.length,
     boqId: boq.id,
     boqProjectId: boq.projectId,
+    ...procurement,
   })
 }
 

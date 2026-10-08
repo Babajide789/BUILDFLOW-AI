@@ -7,6 +7,7 @@ const ownerPermissions: Permission[] = [
   "organization:read",
   "organization:update",
   "organization:manage",
+
   "members:read",
   "members:invite",
   "members:update",
@@ -21,11 +22,17 @@ const ownerPermissions: Permission[] = [
   "boq:create",
   "boq:update",
   "boq:delete",
+
+  "procurement:read",
+  "procurement:create",
+  "procurement:update",
+  "procurement:delete",
 ]
 
 const adminPermissions: Permission[] = [
   "organization:read",
   "organization:update",
+
   "members:read",
   "members:invite",
   "members:update",
@@ -40,6 +47,11 @@ const adminPermissions: Permission[] = [
   "boq:create",
   "boq:update",
   "boq:delete",
+
+  "procurement:read",
+  "procurement:create",
+  "procurement:update",
+  "procurement:delete",
 ]
 
 const memberPermissions: Permission[] = [
@@ -51,6 +63,9 @@ const memberPermissions: Permission[] = [
 
   "boq:read",
   "boq:update",
+
+  "procurement:read",
+  "procurement:update",
 ]
 
 export const rolePermissions: Record<

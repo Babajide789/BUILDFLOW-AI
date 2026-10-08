@@ -2,13 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import {
-  Check,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from "lucide-react"
+import { Check, Pencil, Plus, Trash2, X } from "lucide-react"
 
 import {
   createBoqSectionAction,
@@ -28,7 +22,6 @@ export function BoqSectionActions({
   projectId,
 }: BoqSectionActionsProps) {
   const router = useRouter()
-
   const [name, setName] = useState("")
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -43,24 +36,20 @@ export function BoqSectionActions({
     setError(null)
 
     const formData = new FormData()
-
     formData.set("boqId", boqId)
     formData.set("projectId", projectId)
-    formData.set("name", name)
+    formData.set("name", name.trim())
     formData.set("description", "")
 
     try {
       await createBoqSectionAction(formData)
-
       setName("")
       router.refresh()
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to create section."
+        error instanceof Error ? error.message : "Unable to create section."
       )
-
+    } finally {
       setIsAdding(false)
     }
   }
@@ -70,9 +59,7 @@ export function BoqSectionActions({
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
           value={name}
-          onChange={(event) =>
-            setName(event.target.value)
-          }
+          onChange={(event) => setName(event.target.value)}
           placeholder="New section name"
           disabled={isAdding}
           onKeyDown={(event) => {
@@ -82,28 +69,12 @@ export function BoqSectionActions({
             }
           }}
         />
-
-        <Button
-          type="button"
-          onClick={() => void handleCreate()}
-          disabled={isAdding}
-        >
-          <Plus
-            className="size-4"
-            aria-hidden="true"
-          />
-
-          {isAdding
-            ? "Adding..."
-            : "Add section"}
+        <Button type="button" onClick={() => void handleCreate()} disabled={isAdding}>
+          <Plus className="size-4" aria-hidden="true" />
+          {isAdding ? "Adding..." : "Add section"}
         </Button>
       </div>
-
-      {error ? (
-        <p className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   )
 }
@@ -124,16 +95,10 @@ export function BoqSectionEdit({
   onCancel,
 }: BoqSectionEditProps) {
   const router = useRouter()
-
   const [name, setName] = useState(initialName)
-  const [description, setDescription] = useState(
-    initialDescription
-  )
-  const [isPending, setIsPending] =
-    useState(false)
-  const [error, setError] = useState<string | null>(
-    null
-  )
+  const [description, setDescription] = useState(initialDescription)
+  const [isPending, setIsPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSave() {
     if (!name.trim()) {
@@ -145,22 +110,20 @@ export function BoqSectionEdit({
     setError(null)
 
     const formData = new FormData()
-
     formData.set("sectionId", sectionId)
     formData.set("projectId", projectId)
-    formData.set("name", name)
-    formData.set("description", description)
+    formData.set("name", name.trim())
+    formData.set("description", description.trim())
 
     try {
       await updateBoqSectionAction(formData)
+      onCancel()
       router.refresh()
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "Unable to update section."
+        error instanceof Error ? error.message : "Unable to update section."
       )
-
+    } finally {
       setIsPending(false)
     }
   }
@@ -170,58 +133,28 @@ export function BoqSectionEdit({
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input
           value={name}
-          onChange={(event) =>
-            setName(event.target.value)
-          }
+          onChange={(event) => setName(event.target.value)}
           disabled={isPending}
           placeholder="Section name"
         />
-
         <Input
           value={description}
-          onChange={(event) =>
-            setDescription(event.target.value)
-          }
+          onChange={(event) => setDescription(event.target.value)}
           disabled={isPending}
           placeholder="Description"
         />
       </div>
-
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          disabled={isPending}
-          onClick={() => void handleSave()}
-        >
-          <Check
-            className="size-4"
-            aria-hidden="true"
-          />
-
+        <Button type="button" size="sm" disabled={isPending} onClick={() => void handleSave()}>
+          <Check className="size-4" aria-hidden="true" />
           {isPending ? "Saving..." : "Save"}
         </Button>
-
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={isPending}
-          onClick={onCancel}
-        >
-          <X
-            className="size-4"
-            aria-hidden="true"
-          />
+        <Button type="button" size="sm" variant="ghost" disabled={isPending} onClick={onCancel}>
+          <X className="size-4" aria-hidden="true" />
           Cancel
         </Button>
       </div>
-
-      {error ? (
-        <p className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   )
 }
@@ -236,23 +169,15 @@ export function BoqSectionDeleteButton({
   projectId,
 }: BoqSectionDeleteButtonProps) {
   const router = useRouter()
-
-  const [isPending, setIsPending] =
-    useState(false)
+  const [isPending, setIsPending] = useState(false)
 
   async function handleDelete() {
-    const confirmed = window.confirm(
-      "Delete this BOQ section and all of its line items?"
-    )
-
-    if (!confirmed) {
+    if (!window.confirm("Delete this BOQ section and all of its line items?")) {
       return
     }
 
     setIsPending(true)
-
     const formData = new FormData()
-
     formData.set("sectionId", sectionId)
     formData.set("projectId", projectId)
 
@@ -261,11 +186,8 @@ export function BoqSectionDeleteButton({
       router.refresh()
     } catch (error) {
       window.alert(
-        error instanceof Error
-          ? error.message
-          : "Unable to delete section."
+        error instanceof Error ? error.message : "Unable to delete section."
       )
-
       setIsPending(false)
     }
   }
@@ -279,14 +201,8 @@ export function BoqSectionDeleteButton({
       onClick={() => void handleDelete()}
       className="text-muted-foreground hover:text-destructive"
     >
-      <Trash2
-        className="size-4"
-        aria-hidden="true"
-      />
-
-      {isPending
-        ? "Deleting..."
-        : "Delete section"}
+      <Trash2 className="size-4" aria-hidden="true" />
+      {isPending ? "Deleting..." : "Delete section"}
     </Button>
   )
 }
@@ -295,20 +211,10 @@ interface BoqSectionEditButtonProps {
   onEdit: () => void
 }
 
-export function BoqSectionEditButton({
-  onEdit,
-}: BoqSectionEditButtonProps) {
+export function BoqSectionEditButton({ onEdit }: BoqSectionEditButtonProps) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={onEdit}
-    >
-      <Pencil
-        className="size-4"
-        aria-hidden="true"
-      />
+    <Button type="button" variant="ghost" size="sm" onClick={onEdit}>
+      <Pencil className="size-4" aria-hidden="true" />
       Edit
     </Button>
   )
