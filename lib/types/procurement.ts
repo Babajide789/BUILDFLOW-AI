@@ -31,6 +31,7 @@ export interface ProcurementRequestItem {
 export interface ProcurementRequest {
   id: string
   projectId: string
+  supplierId: string | null
   requestedById: string
   reference: string
   description: string

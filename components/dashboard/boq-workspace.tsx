@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Layers3,
   XCircle,
+  ChevronDown,
 } from "lucide-react"
 
 import { BoqCreateForm } from "@/components/dashboard/boq-create-form"
@@ -307,11 +308,9 @@ function BoqSectionCard({
   section: BoqSection
   projectId: string
 }) {
-  const [isEditing, setIsEditing] =
-    useState(false)
-
-  const sectionTotal =
-    getSectionTotal(section)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const sectionTotal = getSectionTotal(section)
 
   return (
     <Card className="overflow-hidden">
@@ -322,40 +321,44 @@ function BoqSectionCard({
             projectId={projectId}
             name={section.name}
             description={section.description}
-            onCancel={() =>
-              setIsEditing(false)
-            }
+            onCancel={() => setIsEditing(false)}
           />
         ) : (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle className="text-lg">
-                {section.name}
-              </CardTitle>
-
-              {section.description ? (
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {section.description}
+            <button
+              type="button"
+              onClick={() => setIsOpen((value) => !value)}
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+              aria-expanded={isOpen}
+            >
+              <ChevronDown
+                className={`mt-0.5 size-5 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+              <div className="min-w-0">
+                <CardTitle className="text-lg">{section.name}</CardTitle>
+                {section.description ? (
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {section.description}
+                  </p>
+                ) : null}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {section.items.length} {section.items.length === 1 ? "line item" : "line items"}
                 </p>
-              ) : null}
-            </div>
+              </div>
+            </button>
 
             <div className="flex flex-wrap items-center gap-2">
               <div className="shrink-0 sm:text-right">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Section total
                 </p>
-
-                <p className="mt-1 font-semibold">
-                  {formatCurrency(sectionTotal)}
-                </p>
+                <p className="mt-1 font-semibold">{formatCurrency(sectionTotal)}</p>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setIsEditing(true)
-                }
+                onClick={() => setIsEditing(true)}
                 className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Edit
@@ -370,79 +373,44 @@ function BoqSectionCard({
         )}
       </CardHeader>
 
-      <CardContent className="p-0">
-        {section.items.length === 0 ? (
-          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-            No line items in this section yet.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-245 text-sm">
-              <thead className="bg-muted/30">
-                <tr className="border-b">
-                  <th className="w-28 px-4 py-3 text-left font-medium text-muted-foreground sm:px-6">
-                    Item code
-                  </th>
+      {isOpen ? (
+        <CardContent className="p-0">
+          {section.items.length === 0 ? (
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+              No line items in this section yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-245 text-sm">
+                <thead className="bg-muted/30">
+                  <tr className="border-b">
+                    <th className="w-28 px-4 py-3 text-left font-medium text-muted-foreground sm:px-6">Item code</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Description</th>
+                    <th className="w-24 px-4 py-3 text-right font-medium text-muted-foreground">Unit</th>
+                    <th className="w-32 px-4 py-3 text-right font-medium text-muted-foreground">Quantity</th>
+                    <th className="w-40 px-4 py-3 text-right font-medium text-muted-foreground">Rate</th>
+                    <th className="w-44 px-4 py-3 text-right font-medium text-muted-foreground">Amount</th>
+                    <th className="w-24 px-4 py-3 text-right font-medium text-muted-foreground sm:px-6">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {section.items.map((item) => (
+                    <BoqItemRow key={item.id} item={item} projectId={projectId} />
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-muted/20">
+                    <td colSpan={6} className="px-4 py-4 text-right font-medium sm:px-6">Section subtotal</td>
+                    <td className="px-4 py-4 text-right font-semibold tabular-nums sm:px-6">{formatCurrency(sectionTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
 
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">
-                    Description
-                  </th>
-
-                  <th className="w-24 px-4 py-3 text-right font-medium text-muted-foreground">
-                    Unit
-                  </th>
-
-                  <th className="w-32 px-4 py-3 text-right font-medium text-muted-foreground">
-                    Quantity
-                  </th>
-
-                  <th className="w-40 px-4 py-3 text-right font-medium text-muted-foreground">
-                    Rate
-                  </th>
-
-                  <th className="w-44 px-4 py-3 text-right font-medium text-muted-foreground">
-                    Amount
-                  </th>
-
-                  <th className="w-24 px-4 py-3 text-right font-medium text-muted-foreground sm:px-6">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {section.items.map((item) => (
-                  <BoqItemRow
-                    key={item.id}
-                    item={item}
-                    projectId={projectId}
-                  />
-                ))}
-              </tbody>
-
-              <tfoot>
-                <tr className="bg-muted/20">
-                  <td
-                    colSpan={6}
-                    className="px-4 py-4 text-right font-medium sm:px-6"
-                  >
-                    Section subtotal
-                  </td>
-
-                  <td className="px-4 py-4 text-right font-semibold tabular-nums sm:px-6">
-                    {formatCurrency(sectionTotal)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
-
-        <BoqItemCreateForm
-          sectionId={section.id}
-          projectId={projectId}
-        />
-      </CardContent>
+          <BoqItemCreateForm sectionId={section.id} projectId={projectId} />
+        </CardContent>
+      ) : null}
     </Card>
   )
 }

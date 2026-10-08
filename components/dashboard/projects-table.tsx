@@ -15,7 +15,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import type { Project, ProjectStatus } from "@/lib/types/project"
+import type {
+  Project,
+  ProjectStatus,
+} from "@/lib/types/project"
 
 interface ProjectsTableProps {
   projects: Project[]
@@ -74,6 +77,18 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+function getBudgetLabel(budget: number) {
+  return budget > 0
+    ? formatCurrency(budget)
+    : "Not established"
+}
+
+function getProgressLabel(progress: number) {
+  return progress > 0
+    ? `${progress}%`
+    : "Not started"
+}
+
 export function ProjectsTable({
   projects,
 }: ProjectsTableProps) {
@@ -101,7 +116,8 @@ export function ProjectsTable({
   }, [projects, searchTerm, statusFilter])
 
   const hasActiveFilters =
-    searchTerm.trim().length > 0 || statusFilter !== "all"
+    searchTerm.trim().length > 0 ||
+    statusFilter !== "all"
 
   function clearFilters() {
     setSearchTerm("")
@@ -139,7 +155,9 @@ export function ProjectsTable({
             value={statusFilter}
             onChange={(event) =>
               setStatusFilter(
-                event.target.value as "all" | ProjectStatus
+                event.target.value as
+                  | "all"
+                  | ProjectStatus
               )
             }
             aria-label="Filter projects by status"
@@ -242,7 +260,7 @@ export function ProjectsTable({
                 </TableCell>
 
                 <TableCell className="py-4 text-right font-medium">
-                  {formatCurrency(project.budget)}
+                  {getBudgetLabel(project.budget)}
                 </TableCell>
 
                 <TableCell className="py-4">
@@ -251,8 +269,8 @@ export function ProjectsTable({
                       <Progress value={project.progress} />
                     </div>
 
-                    <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums text-muted-foreground">
-                      {project.progress}%
+                    <span className="w-20 shrink-0 text-right text-sm font-medium tabular-nums text-muted-foreground">
+                      {getProgressLabel(project.progress)}
                     </span>
                   </div>
                 </TableCell>

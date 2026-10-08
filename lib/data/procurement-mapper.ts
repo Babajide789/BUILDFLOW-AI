@@ -31,9 +31,7 @@ const requestStatusMap: Record<
   CANCELLED: "cancelled",
 }
 
-function mapSupplier(
-  supplier: PrismaSupplier
-): Supplier {
+function mapSupplier(supplier: PrismaSupplier): Supplier {
   return {
     id: supplier.id,
     organizationId: supplier.organizationId,
@@ -51,8 +49,7 @@ function mapProcurementRequestItem(
 ): ProcurementRequestItem {
   return {
     id: item.id,
-    procurementRequestId:
-      item.procurementRequestId,
+    procurementRequestId: item.procurementRequestId,
     boqItemId: item.boqItemId,
     quantity: Number(item.quantity),
     notes: item.notes ?? "",
@@ -67,13 +64,12 @@ export function mapProcurementRequest(
   return {
     id: request.id,
     projectId: request.projectId,
+    supplierId: request.supplierId,
     requestedById: request.requestedBy,
     reference: request.reference,
     description: request.description ?? "",
     status: requestStatusMap[request.status],
-    items: request.items.map(
-      mapProcurementRequestItem
-    ),
+    items: request.items.map(mapProcurementRequestItem),
   }
 }
 
@@ -87,14 +83,10 @@ export function mapProcurementRequests(
   return requests.map(mapProcurementRequest)
 }
 
-export function mapSupplierRecord(
-  supplier: PrismaSupplier
-): Supplier {
+export function mapSupplierRecord(supplier: PrismaSupplier): Supplier {
   return mapSupplier(supplier)
 }
 
-export function mapSuppliers(
-  suppliers: PrismaSupplier[]
-): Supplier[] {
+export function mapSuppliers(suppliers: PrismaSupplier[]): Supplier[] {
   return suppliers.map(mapSupplier)
 }
