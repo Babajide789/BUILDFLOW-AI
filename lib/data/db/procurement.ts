@@ -48,6 +48,15 @@ export interface CreateProcurementRequestItemInput {
   notes?: string | null
 }
 
+export interface CreateProcurementRequestWithItemsInput
+  extends CreateProcurementRequestInput {
+  items: Array<{
+    boqItemId: string
+    quantity: Prisma.Decimal | number | string
+    notes?: string | null
+  }>
+}
+
 export interface UpdateProcurementRequestItemInput {
   quantity?: Prisma.Decimal | number | string
   notes?: string | null
@@ -148,6 +157,79 @@ export async function createProcurementRequest(
       description: input.description ?? null,
       status: input.status ?? "DRAFT",
     },
+  })
+}
+
+/**
+ * Creates a procurement request and all of its initial BOQ items atomically.
+ * If validation or any database write fails, Prisma rolls back the entire
+ * transaction so a request cannot be left partially populated.
+ */
+export async function createProcurementRequestWithItems(
+  input: CreateProcurementRequestWithItemsInput
+) {
+  const itemIds = input.items.map((item) => item.boqItemId)
+
+  if (new Set(itemIds).size !== itemIds.length) {
+    throw new Error(
+      "One of the selected BOQ items is already included in the procurement request."
+    )
+  }
+
+  for (const item of input.items) {
+    const quantity = Number(item.quantity)
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new Error(
+        "Every procurement request item must have a quantity greater than zero."
+      )
+    }
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    if (itemIds.length > 0) {
+      const validItems = await transaction.boqItem.findMany({
+        where: {
+          id: { in: itemIds },
+          section: {
+            boq: {
+              projectId: input.projectId,
+            },
+          },
+        },
+        select: { id: true },
+      })
+
+      if (validItems.length !== itemIds.length) {
+        throw new Error(
+          "A selected BOQ item does not belong to this project's BOQ. Refresh the page and try again."
+        )
+      }
+    }
+
+    const request = await transaction.procurementRequest.create({
+      data: {
+        projectId: input.projectId,
+        requestedBy: input.requestedById,
+        supplierId: input.supplierId ?? null,
+        reference: input.reference,
+        description: input.description ?? null,
+        status: input.status ?? "DRAFT",
+      },
+    })
+
+    if (input.items.length > 0) {
+      await transaction.procurementRequestItem.createMany({
+        data: input.items.map((item) => ({
+          procurementRequestId: request.id,
+          boqItemId: item.boqItemId,
+          quantity: item.quantity,
+          notes: item.notes ?? null,
+        })),
+      })
+    }
+
+    return request
   })
 }
 

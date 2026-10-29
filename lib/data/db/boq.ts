@@ -94,6 +94,7 @@ export async function createBoqSection(
 
 export async function updateBoqSection(
   sectionId: string,
+  projectId: string,
   organizationId: string,
   input: UpdateBoqSectionInput
 ) {
@@ -101,6 +102,7 @@ export async function updateBoqSection(
     where: {
       id: sectionId,
       boq: {
+        projectId,
         project: {
           organizationId,
         },
@@ -125,12 +127,14 @@ export async function updateBoqSection(
 
 export async function deleteBoqSection(
   sectionId: string,
+  projectId: string,
   organizationId: string
 ) {
   const section = await prisma.boqSection.findFirst({
     where: {
       id: sectionId,
       boq: {
+        projectId,
         project: {
           organizationId,
         },
@@ -189,6 +193,7 @@ export async function createBoqItem(
 
 export async function updateBoqItem(
   itemId: string,
+  projectId: string,
   organizationId: string,
   input: UpdateBoqItemInput
 ) {
@@ -197,6 +202,7 @@ export async function updateBoqItem(
       id: itemId,
       section: {
         boq: {
+          projectId,
           project: {
             organizationId,
           },
@@ -222,6 +228,7 @@ export async function updateBoqItem(
 
 export async function deleteBoqItem(
   itemId: string,
+  projectId: string,
   organizationId: string
 ) {
   const item = await prisma.boqItem.findFirst({
@@ -229,6 +236,7 @@ export async function deleteBoqItem(
       id: itemId,
       section: {
         boq: {
+          projectId,
           project: {
             organizationId,
           },

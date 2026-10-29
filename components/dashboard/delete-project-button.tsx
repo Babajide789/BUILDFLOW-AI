@@ -27,8 +27,13 @@ export function DeleteProjectButton({
 
     try {
       await deleteProjectAction(projectId)
-    } catch {
+    } catch (error) {
       setIsPending(false)
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete this project. Please try again."
+      )
     }
   }
 

@@ -89,11 +89,18 @@ function getStatusLabel(
   return labels[status]
 }
 
+/**
+ * BOQ line amounts are already rounded to two currency decimal places by
+ * the server mapper. Sum integer cents here to avoid floating-point drift
+ * in the displayed section total.
+ */
 function getSectionTotal(section: BoqSection) {
-  return section.items.reduce(
-    (total, item) => total + item.amount,
+  const totalCents = section.items.reduce(
+    (total, item) => total + Math.round(item.amount * 100),
     0
   )
+
+  return totalCents / 100
 }
 
 function getItemCount(boq: Boq) {
