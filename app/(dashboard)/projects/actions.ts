@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { z } from "zod"
+import { Prisma } from "@/generated/prisma/client"
 
 import { getCurrentOrganizationMembership } from "@/lib/auth"
 import { requireBoqAccess } from "@/lib/auth/boq-access"
@@ -22,7 +23,7 @@ import {
   updateBoqSection,
 } from "@/lib/data/db/boq"
 import {
-  createProcurementRequest,
+  createProcurementRequestWithItems,
   createProcurementRequestItem,
   createSupplier,
   deleteProcurementRequest,
@@ -85,7 +86,42 @@ const procurementRequestStatusSchema = z.enum([
   "CANCELLED",
 ])
 
-const createProjectSchema = z.object({
+function isValidDateOnly(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`)
+
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value
+  )
+}
+
+const optionalProjectDateSchema = z.preprocess(
+  (value) => {
+    if (value === null || value === undefined) {
+      return undefined
+    }
+
+    if (typeof value === "string" && value.trim() === "") {
+      return undefined
+    }
+
+    return value
+  },
+  z
+    .string()
+    .trim()
+    .refine(
+      isValidDateOnly,
+      "Enter a valid project date in YYYY-MM-DD format."
+    )
+    .optional()
+)
+
+const projectSchemaFields = z.object({
   name: z.string().trim().min(2, "Project name must be at least 2 characters.").max(120, "Project name is too long."),
   slug: z.string().trim().min(2, "Project slug must be at least 2 characters.").max(120, "Project slug is too long.").regex(
     /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
@@ -94,12 +130,40 @@ const createProjectSchema = z.object({
   description: z.string().trim().max(1000, "Description is too long.").optional(),
   client: z.string().trim().max(160, "Client name is too long.").optional(),
   location: z.string().trim().max(160, "Location is too long.").optional(),
-  startDate: z.string().trim().optional(),
-  endDate: z.string().trim().optional(),
+  startDate: optionalProjectDateSchema,
+  endDate: optionalProjectDateSchema,
 })
 
-const updateProjectSchema = createProjectSchema.extend({
+const createProjectSchema = projectSchemaFields.superRefine(
+  (data, context) => {
+    if (
+      data.startDate &&
+      data.endDate &&
+      data.startDate > data.endDate
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endDate"],
+        message: "Project end date cannot be earlier than its start date.",
+      })
+    }
+  }
+)
+
+const updateProjectSchema = projectSchemaFields.extend({
   status: projectStatusSchema,
+}).superRefine((data, context) => {
+  if (
+    data.startDate &&
+    data.endDate &&
+    data.startDate > data.endDate
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endDate"],
+      message: "Project end date cannot be earlier than its start date.",
+    })
+  }
 })
 
 const createBoqSchema = z.object({
@@ -151,6 +215,38 @@ const deleteBoqSectionSchema = z.object({
   projectId: z.string().trim().min(1),
 })
 
+/**
+ * Validate a non-negative decimal string against the Prisma Decimal column.
+ * BoqItem.quantity is Decimal(18, 4): at most 14 integer and 4 fractional digits.
+ * BoqItem.rate is Decimal(18, 2): at most 16 integer and 2 fractional digits.
+ *
+ * Do not use Number() for validation here: it can accept exponent notation and
+ * cannot reliably enforce the database scale/precision contract.
+ */
+function boqDecimalInputSchema(
+  label: string,
+  maxIntegerDigits: number,
+  maxFractionDigits: number
+) {
+  return z
+    .string()
+    .trim()
+    .min(1, `${label} is required.`)
+    .refine(
+      (value) => /^\d+(?:\.\d+)?$/.test(value),
+      `Enter a valid non-negative ${label.toLowerCase()}.`
+    )
+    .refine((value) => {
+      const [integerPart, fractionPart = ""] = value.split(".")
+      const significantIntegerDigits = integerPart.replace(/^0+/, "").length
+
+      return (
+        significantIntegerDigits <= maxIntegerDigits &&
+        fractionPart.length <= maxFractionDigits
+      )
+    }, `${label} exceeds the supported precision (${maxIntegerDigits} integer digits and ${maxFractionDigits} decimal places).`)
+}
+
 const boqItemSchema = z.object({
   sectionId: z.string().trim().min(1),
   projectId: z.string().trim().min(1),
@@ -158,29 +254,16 @@ const boqItemSchema = z.object({
     .string()
     .trim()
     .min(1, "Item code is required.")
-    .max(50, "Item code is too long."),
+    .max(50, "Item code is too long.")
+    .transform((value) => value.toUpperCase()),
   description: z
     .string()
     .trim()
     .min(2, "Item description must be at least 2 characters.")
     .max(500, "Item description is too long."),
   unit: boqUnitSchema,
-  quantity: z
-    .string()
-    .trim()
-    .min(1, "Quantity is required.")
-    .refine((value) => {
-      const amount = Number(value)
-      return Number.isFinite(amount) && amount >= 0
-    }, "Enter a valid quantity."),
-  rate: z
-    .string()
-    .trim()
-    .min(1, "Rate is required.")
-    .refine((value) => {
-      const amount = Number(value)
-      return Number.isFinite(amount) && amount >= 0
-    }, "Enter a valid rate."),
+  quantity: boqDecimalInputSchema("Quantity", 14, 4),
+  rate: boqDecimalInputSchema("Rate", 16, 2),
 })
 
 const updateBoqItemSchema = boqItemSchema.extend({
@@ -337,14 +420,26 @@ function getOptionalDate(value: string | undefined) {
     return null
   }
 
-  const date = new Date(`${trimmed}T00:00:00`)
+  // Project date schemas validate this value before it reaches persistence.
+  // Keep a defensive check here so invalid dates can never silently become null.
+  if (!isValidDateOnly(trimmed)) {
+    throw new Error("Enter a valid project date in YYYY-MM-DD format.")
+  }
 
-  return Number.isNaN(date.getTime()) ? null : date
+  return new Date(`${trimmed}T00:00:00.000Z`)
 }
 
+/**
+ * The current project budget is BOQ-derived, not an independently approved
+ * contract sum. Include active and completed BOQ items, but exclude cancelled
+ * items. Round the resulting monetary total to the project's 2-decimal scale.
+ * A future cost-plan/contract-sum feature should introduce its own explicit
+ * source of truth rather than silently reusing this derived value.
+ */
 async function syncProjectBudgetFromBoq(projectId: string) {
   const items = await prisma.boqItem.findMany({
     where: {
+      status: { not: "CANCELLED" },
       section: {
         boq: {
           projectId,
@@ -357,10 +452,13 @@ async function syncProjectBudgetFromBoq(projectId: string) {
     },
   })
 
+  // Round each BOQ line to currency precision before summing. This keeps the
+  // stored project budget consistent with the line amounts shown in the BOQ.
   const total = items.reduce(
-    (sum, item) => sum + Number(item.quantity) * Number(item.rate),
-    0
-  )
+    (sum, item) =>
+      sum.plus(item.quantity.mul(item.rate).toDecimalPlaces(2)),
+    new Prisma.Decimal(0)
+  ).toDecimalPlaces(2)
 
   await prisma.project.updateMany({
     where: { id: projectId },
@@ -370,9 +468,16 @@ async function syncProjectBudgetFromBoq(projectId: string) {
   revalidatePath("/projects")
 }
 
+/**
+ * Project progress remains a value-weighted BOQ status estimate until a future
+ * execution-tracking milestone introduces measured actual quantities. Cancelled
+ * items are excluded from both the planned-value denominator and completed
+ * value. Decimal arithmetic is retained until the final whole-percent result.
+ */
 async function syncProjectProgressFromBoq(projectId: string) {
   const items = await prisma.boqItem.findMany({
     where: {
+      status: { not: "CANCELLED" },
       section: {
         boq: {
           projectId,
@@ -386,24 +491,24 @@ async function syncProjectProgressFromBoq(projectId: string) {
     },
   })
 
+  // Use the same per-line 2-decimal rounding as the BOQ and budget totals.
   const totalValue = items.reduce(
     (sum, item) =>
-      sum + Number(item.quantity) * Number(item.rate),
-    0
+      sum.plus(item.quantity.mul(item.rate).toDecimalPlaces(2)),
+    new Prisma.Decimal(0)
   )
 
   const completedValue = items.reduce(
     (sum, item) =>
       item.status === "COMPLETED"
-        ? sum + Number(item.quantity) * Number(item.rate)
+        ? sum.plus(item.quantity.mul(item.rate).toDecimalPlaces(2))
         : sum,
-    0
+    new Prisma.Decimal(0)
   )
 
-  const progress =
-    totalValue > 0
-      ? Math.round((completedValue / totalValue) * 100)
-      : 0
+  const progress = totalValue.gt(0)
+    ? Math.round(completedValue.div(totalValue).mul(100).toNumber())
+    : 0
 
   await prisma.project.updateMany({
     where: { id: projectId },
@@ -754,6 +859,7 @@ export async function updateBoqSectionAction(
 
   const section = await updateBoqSection(
     data.sectionId,
+    data.projectId,
     membership.organizationId,
     {
       name: data.name,
@@ -796,6 +902,7 @@ export async function deleteBoqSectionAction(
 
   const section = await deleteBoqSection(
     data.sectionId,
+    data.projectId,
     membership.organizationId
   )
 
@@ -920,18 +1027,36 @@ export async function updateBoqItemAction(
     "boq:update"
   )
 
-  const item = await updateBoqItem(
-    data.itemId,
-    membership.organizationId,
-    {
-      itemCode: data.itemCode,
-      description: data.description,
-      unit: data.unit,
-      quantity: data.quantity,
-      rate: data.rate,
-      status: data.status,
+  let item
+
+  try {
+    item = await updateBoqItem(
+      data.itemId,
+      data.projectId,
+      membership.organizationId,
+      {
+        itemCode: data.itemCode,
+        description: data.description,
+        unit: data.unit,
+        quantity: data.quantity,
+        rate: data.rate,
+        status: data.status,
+      }
+    )
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      throw new Error(
+        "An item with this code already exists in this section."
+      )
     }
-  )
+
+    throw error
+  }
 
   if (!item) {
     throw new Error("BOQ item not found.")
@@ -968,6 +1093,7 @@ export async function deleteBoqItemAction(
 
   const item = await deleteBoqItem(
     data.itemId,
+    data.projectId,
     membership.organizationId
   )
 
@@ -1203,91 +1329,91 @@ export async function createProcurementRequestAction(
     )
   }
 
+  const supplierId = getOptionalValue(data.supplierId)
+
   await validateProcurementSupplier(
-    getOptionalValue(data.supplierId),
+    supplierId,
     "procurement:create"
   )
-
-  let request
-
-  try {
-    request =
-      await createProcurementRequest({
-        projectId: data.projectId,
-        requestedById: membership.userId,
-        reference: data.reference,
-        description: getOptionalValue(
-          data.description
-        ),
-        supplierId: getOptionalValue(
-          data.supplierId
-        ),
-        status: "DRAFT",
-      })
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      throw new Error(
-        "A procurement request with this reference already exists in this project."
-      )
-    }
-
-    throw error
-  }
 
   const boqItemIds = formData
     .getAll("boqItemId")
     .map((value) => String(value).trim())
     .filter(Boolean)
 
+  const items = boqItemIds.map((boqItemId) => {
+    const quantity = String(
+      formData.get(`quantity_${boqItemId}`) ?? ""
+    ).trim()
+    const notes = String(
+      formData.get(`notes_${boqItemId}`) ?? ""
+    ).trim()
+    const numericQuantity = Number(quantity)
+
+    if (
+      !quantity ||
+      !Number.isFinite(numericQuantity) ||
+      numericQuantity <= 0
+    ) {
+      throw new Error(
+        `Enter a valid quantity greater than zero for BOQ item ${boqItemId}.`
+      )
+    }
+
+    return {
+      boqItemId,
+      quantity,
+      notes: getOptionalValue(notes),
+    }
+  })
+
   try {
-    for (const boqItemId of boqItemIds) {
-      const quantity = String(
-        formData.get(`quantity_${boqItemId}`) ?? ""
-      ).trim()
-      const notes = String(
-        formData.get(`notes_${boqItemId}`) ?? ""
-      ).trim()
+    const request = await createProcurementRequestWithItems({
+      projectId: data.projectId,
+      requestedById: membership.userId,
+      reference: data.reference,
+      description: getOptionalValue(data.description),
+      supplierId,
+      status: "DRAFT",
+      items,
+    })
 
-      const item = await createProcurementRequestItem({
-        procurementRequestId: request.id,
-        boqItemId,
-        quantity,
-        notes: getOptionalValue(notes),
-      })
+    await revalidateProcurement(data.projectId)
 
-      if (!item) {
-        throw new Error(
-          "A selected BOQ item could not be added to the procurement request."
-        )
-      }
+    return {
+      success: true,
+      requestId: request.id,
     }
   } catch (error) {
-    await deleteProcurementRequest(request.id, data.projectId)
-
     if (
       error &&
       typeof error === "object" &&
       "code" in error &&
       error.code === "P2002"
     ) {
+      const target =
+        "meta" in error &&
+        error.meta &&
+        typeof error.meta === "object" &&
+        "target" in error.meta
+          ? String(error.meta.target)
+          : ""
+
+      if (
+        target.includes("procurementRequestId") ||
+        target.includes("boqItemId")
+      ) {
+        throw new Error(
+          "One of the selected BOQ items is already included in the procurement request."
+        )
+      }
+
       throw new Error(
-        "One of the selected BOQ items is already included in the procurement request."
+        "A procurement request with this reference already exists in this project."
       )
     }
 
     throw error
-  }
-
-  await revalidateProcurement(data.projectId)
-
-  return {
-    success: true,
-    requestId: request.id,
   }
 }
 
