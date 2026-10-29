@@ -36,6 +36,7 @@ export function DeleteProjectButton({
       )
     }
   }
+  
 
   return (
     <Button
