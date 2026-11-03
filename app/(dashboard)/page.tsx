@@ -8,6 +8,7 @@ export default function DashboardPage() {
 
         <p className="mt-2 text-muted-foreground">
           Welcome to BuildFlow AI.
+          <h4>That is the updated line</h4>
         </p>
       </div>
     </div>
